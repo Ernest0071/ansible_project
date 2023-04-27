@@ -1,0 +1,664 @@
+global_awx_ad_hoc_shell_switch: false
+global_var_ubuntu_user: ubuntu
+global_var_vpc_name: main-billbox-vpc
+global_var_ecs_clustername: "{{ global_var_country }}-{{ global_var_product }}-{{ global_var_environment }}-cluster"
+global_var_ecs_region: eu-west-1
+global_auto_turnoff: false
+
+global_var_environment: prod
+global_var_product: billbox
+global_var_product_short_hand: kb
+global_var_country: main
+global_var_country_code: main
+global_var_cloudfront_base_url: "https://dgmkibrygddg4.cloudfront.net"
+global_var_insightops_log_set: "Billbox2.0Prod"
+
+global_var_alb_name: "{{ global_var_country }}-{{ global_var_product }}-{{ global_var_environment }}-endpoint"
+global_var_mtls_alb_name: "{{ global_var_country }}-{{ global_var_product }}-{{ global_var_environment }}-mtls-endpoint"
+global_var_securecore_mtls_alb_name: "{{ global_var_country }}-{{ global_var_product }}-{{ global_var_environment }}-apimtls"
+global_var_intnalalb_name: "{{ global_var_country }}-{{ global_var_product }}-{{ global_var_environment }}-internallb"
+global_var_alb_default_targetgroup: "main-billbox-{{ global_var_environment }}-fakeTG"
+global_var_internalalb_default_targetgroup: "main-billbox-{{ global_var_environment }}-internalfakeTG"
+global_var_iam_ecs_role: "{{ global_var_country }}-{{ global_var_product }}-{{ global_var_environment }}-ecstask-role"
+global_var_log_group: "BillboxNetworkLogs"
+global_var_ssm_nexussecret: "{{ global_var_environment }}/billbox/nexuscreds"
+global_var_ssm_quayiosecret: "{{ global_var_environment }}/billbox/quaycreds"
+global_var_ssm_harborsecret: "{{ global_var_environment }}/billbox/harborcreds"
+global_var_ssm_dockerhubsecret: "{{ global_var_environment }}/billbox/dockerhubcreds"
+global_ssh_pem_file_location: "{{ lookup('env','DO_ANSIBLE_HOME') }}/{{ global_var_country }}/{{ global_var_product }}/deployments/{{ global_var_environment }}/GHBillboxProductionOps.pem"
+
+global_var_priv_dns_namespace: "billbox.{{ global_var_environment }}"
+# global_var_configuration_git_dir: "{{ lookup('env','DO_ANSIBLE_HOME') }}/{{ global_var_country }}/{{ global_var_product }}/configuration"
+global_var_configuration_git_dir: "localrepo/{{ global_var_environment }}/{{ global_var_country }}/{{ global_var_product }}/configuration"
+global_var_configserver_folder: "configserver{{ global_var_environment }}"
+global_var_configuration_git_details:
+  - {
+    dir: "{{ global_var_configuration_git_dir }}",
+    repo: "https://{{ vault_git_username }}:{{ vault_git_token }}@bitbucket.org/kowri/kowribusinessconfigs.git",
+    repo_url: "bitbucket.org/kowri/kowribusinessconfigs.git",
+    version: "master"
+  }
+global_var_alb_certificate_arn: "arn:aws:acm:eu-west-1:116643325382:certificate/b2bcd959-9077-458a-be75-6e73e1e2dc08"
+### Elasticache section ####
+global_var_redis_replicationgroupname: "redis"
+global_var_redis_engine_version: 6.x
+global_var_redis_num_nodes: 1
+global_var_redis_node_type: "cache.t3.micro"
+global_var_redis_port: 6379
+
+
+### End Elasticache section ###
+
+### Kafka Section  ####
+global_var_kafka_cluster_name: "main-billbox-{{ global_var_environment }}-kafka"
+global_var_kafka_plain_port: 9092
+global_var_kafka_ssl_port: 9094
+global_var_kafka_broker_port: 2181
+global_var_kafka_version: "2.2.1"
+global_var_kafka_instance_type: "kafka.t3.small"
+global_var_kafka_broker_nodes: 3
+
+### End Kafka Section ###
+
+### Elasticsearch (ELK) Section ###
+global_var_elk_domain_name: "{{ global_var_country }}-{{ global_var_product }}-{{ global_var_environment }}-elk"
+global_var_elk_version: 7.9
+global_var_elk_instance_type: "t2.small.elasticsearch"
+global_var_elk_instance_count: 2
+global_var_elk_enable_dedicated_masters: false
+### End Elasticsearch Section ###
+
+### Proxy Section ###
+
+
+
+
+global_ghmtndatabundle_nginx_port: 10096
+global_ghzenith_nginx_port: 11009
+
+
+global_main_nginx_port: 8000
+global_main_oregon_nginx_port: 80
+global_ghria_nginx_port: 10000
+global_ghsurfline_nginx_port: 11002
+global_ghstanlib_nginx_port: 11001
+global_ghtotal_nginx_port: 11003
+global_zwcellulant_nginx_port: 10001
+global_zwstanbic_nginx_port: 10003
+global_zweconet_nginx_port: 9000
+global_ghecobank_nginx_port: 10118
+global_ghafricxpressmtn_nginx_port: 10112
+# 
+global_ghafricxpressairtel_nginx_port: 10108
+# 
+global_ghmps_nginx_port: 10090
+global_gh_mtndatabundle_nginx_port: 10096
+global_ghmtnfttxbundle_nginx_port: 10120
+global_ghone4all_nginx_port: 10100
+global_ghpassionair_nginx_port: 10117
+global_ghprudentiallife_nginx_port: 10114
+global_ghstanbicdmz_nginx_port: 18800
+global_forward_gh_stanbicdatapower_nginx_port: 18800
+global_ghsurfline_oregon_nginx_port: 10098
+global_ghtigoevd_nginx_port: 10080
+# global_ghmtnbanktowallet_nginx_port: 10443
+global_ghformsstanbic_nginx_port: 10106
+global_ghstanbicnursintake_nginx_port: 19000
+global_ghstanbicvas_nginx_port: 443
+global_ghecgpostpaid_nginx_port: 10200
+global_ghdigitalmedia_nginx_port: 10201
+global_ghetranzact_nginx_port: 10202
+global_ghstartimes_nginx_port: 10203
+global_ghairtelmoney_nginx_port: 10204
+global_ghmtnmoney_nginx_port: 10205
+global_ghenterprisegroup_nginx_port: 10206
+global_ghmtnova_nginx_port: 11004
+#
+global_zwecocash_nginx_port: 11008
+global_ghairtelmoney_direct_nginx_port: 10207
+global_ghinterpay_nginx_port: 10208
+global_forward_zw_econet_nginx_port: 11010
+global_var_app_port_for_proxies: 9191
+global_forward_gh_appsnmobaiterltigo_nginx_port: 11207
+global_forward_gh_appsnmob_aiterltigo_nginx_port: 11207
+global_proxy_forward_zw_ecocash_nginx_port: 11008
+global_gh_ghipss_nginx_port: 11011
+global_gh_afrxprssairteltigo_nginx_port: 11080
+global_gh_afrxprssglo_nginx_port: 10116
+global_gh_afrxprssvodafone_nginx_port: 10110
+global_gh_airteltigobankintegration_nginx_port: 11006
+global_gh_gwcl_nginx_port: 10094
+global_proxy_forward_gh_vodafonecash_nginx_port: 10092
+global_gh_zeepaymomo_nginx_port: 11012
+global_proxy_forward_gh_mtnfttxbundle_nginx_port: 10120
+global_gh_mpay_bundlesfiber_nginx_port: 11014
+global_forward_gh_origginecg_nginx_port: 11015
+global_forward_gh_niacard_nginx_port: 11016
+global_var_billbox_s3_bucket: "{{ global_var_country_code }}-{{ global_var_product }}"
+global_forward_gh_ghipss_chback_portal_nginx_port: 11017
+global_var_billbox_ssl_folder_path: "/srv/ssl/billbox/2021_2022"
+global_var_billbox_ssl_bucket_key: "/ssl/client/production"
+global_var_billbox_ssl_cert: "proxy_usebillbox_com_bundle.crt"
+global_var_billbox_ssl_key: "proxy_usebillbox_com.key"
+global_var_billbox_s3_client_ssl_bucket_key: "/ssl/client/{{ global_var_environment }}"
+global_var_billbox_s3_server_ssl_bucket_key: "/ssl/server{{ global_var_environment }}"
+### End Proxy Section ####
+
+### Networking Section ####
+global_var_ird_region: eu-west-1
+global_var_frt_region: eu-central-1
+global_var_stm_region: eu-north-1
+
+global_var_ird_vpc_group: "172.21"
+global_var_frt_vpc_group: "172.22"
+global_var_stm_vpc_group: "172.23"
+global_var_ird_vpc_cidr: "{{ global_var_ird_vpc_group }}.0.0/16"
+global_var_frt_vpc_cidr: "{{ global_var_frt_vpc_group }}.0.0/16"
+global_var_stm_vpc_cidr: "{{ global_var_stm_vpc_group }}.0.0/16"
+global_var_jumpbox_cidr: "172.21.1.235/32"
+
+global_var_ird_vpc_id: "vpc-acb1fdca"
+global_var_frt_vpc_id: "vpc-02bec84ac34eb6aca"
+global_var_stm_vpc_id: "vpc-015b197c41dc403eb"
+
+global_var_app_secgroup: "{{ global_var_country }}-{{ global_var_product }}-{{ global_var_environment }}-appsecgroup"
+global_var_jumpbox_secgroup: "{{ global_var_country }}-{{ global_var_product }}-{{ global_var_environment }}-jumpboxssecgroup"
+global_var_alb_secgroup: "{{ global_var_country }}-{{ global_var_product }}-{{ global_var_environment }}-elbsecgroup"
+global_var_card_secgroup: "{{ global_var_country }}-{{ global_var_product }}-{{ global_var_environment }}-cardsecgroup"
+global_var_redis_secgroup: "{{ global_var_country }}-{{ global_var_product }}-{{ global_var_environment }}-elcredissecgroup"
+global_var_elk_secgroup: "{{ global_var_country }}-{{ global_var_product }}-{{ global_var_environment }}-elksecgroup"
+global_var_kafka_secgroup: "{{ global_var_country }}-{{ global_var_product }}-{{ global_var_environment }}-kafkasecgroup"
+global_var_mongo_secgroup: "{{ global_var_country }}-{{ global_var_product }}-{{ global_var_environment }}-mongosecgroup"
+global_var_mysql_secgroup: "{{ global_var_country }}-{{ global_var_product }}-{{ global_var_environment }}-mysqlsecgroup"
+global_var_internalelb_secgroup: "{{ global_var_country }}-{{ global_var_product }}-{{ global_var_environment }}-internalelbsecgroup"
+
+global_var_app_subnet_name: main-billbox-public-{{ global_var_environment }}-app
+global_var_private_app_subnet_name: main-billbox-private-{{ global_var_environment }}-app
+global_var_db_subnet_name: main-billbox-private-{{ global_var_environment }}-db
+global_var_card_subnet_name: main-billbox-private-{{ global_var_environment }}-card
+global_var_mongo_subnet_name: main-billbox-private-{{ global_var_environment }}-mongo
+global_var_mysql_subnet_name: main-billbox-private-{{ global_var_environment }}-mysql
+global_var_services_subnet_name: main-billbox-private-{{ global_var_environment }}-services
+
+
+global_var_vpc_subnet_definition:
+  - name: appsubnets_ird
+    vpc_id: "{{ global_var_ird_vpc_id }}"
+    region: "{{ global_var_ird_region }}"
+    subnets:
+      - cidr: "{{ global_var_ird_vpc_group }}.3.0/24"
+        az: "{{ global_var_ird_region }}a"
+        tags:
+          Name: "{{ global_var_app_subnet_name }}"
+          AName: "{{ global_var_app_subnet_name }}-{{ global_var_ird_region }}a"
+      - cidr: "{{ global_var_ird_vpc_group }}.4.0/24"
+        az: "{{ global_var_ird_region }}b"
+        tags:
+          Name: "{{ global_var_app_subnet_name }}"
+          AName: "{{ global_var_app_subnet_name }}-{{ global_var_ird_region }}b"
+      - cidr: "{{ global_var_ird_vpc_group }}.5.0/24"
+        az: "{{ global_var_ird_region }}c"
+        tags:
+          Name: "{{ global_var_app_subnet_name }}"
+          AName: "{{ global_var_app_subnet_name }}-{{ global_var_ird_region }}c"
+  - name: appsubnets_frt
+    vpc_id: "{{ global_var_frt_vpc_id }}"
+    region: "{{ global_var_frt_region }}"
+    subnets:
+      - cidr: "{{ global_var_frt_vpc_group }}.3.0/24"
+        az: "{{ global_var_frt_region }}a"
+        tags:
+          Name: "{{ global_var_app_subnet_name }}"
+          AName: "{{ global_var_app_subnet_name }}-{{ global_var_frt_region }}a"
+      - cidr: "{{ global_var_frt_vpc_group }}.4.0/24"
+        az: "{{ global_var_frt_region }}b"
+        tags:
+          Name: "{{ global_var_app_subnet_name }}"
+          AName: "{{ global_var_app_subnet_name }}-{{ global_var_frt_region }}b"
+      - cidr: "{{ global_var_frt_vpc_group }}.5.0/24"
+        az: "{{ global_var_frt_region }}c"
+        tags:
+          Name: "{{ global_var_app_subnet_name }}"
+          AName: "{{ global_var_app_subnet_name }}-{{ global_var_frt_region }}c"
+  - name: servicessubnets_ird
+    vpc_id: "{{ global_var_ird_vpc_id }}"
+    region: "{{ global_var_ird_region }}"
+    subnets:
+      - cidr: "{{ global_var_ird_vpc_group }}.20.0/24"
+        az: "{{ global_var_ird_region }}a"
+        tags:
+          Name: "{{ global_var_services_subnet_name }}"
+          AName: "{{ global_var_services_subnet_name }}-{{ global_var_ird_region }}a"
+      - cidr: "{{ global_var_ird_vpc_group }}.21.0/24"
+        az: "{{ global_var_ird_region }}b"
+        tags:
+          Name: "{{ global_var_services_subnet_name }}"
+          AName: "{{ global_var_services_subnet_name }}-{{ global_var_ird_region }}b"
+      - cidr: "{{ global_var_ird_vpc_group }}.22.0/24"
+        az: "{{ global_var_ird_region }}c"
+        tags:
+          Name: "{{ global_var_services_subnet_name }}"
+          AName: "{{ global_var_services_subnet_name }}-{{ global_var_ird_region }}c"
+  - name: servicessubnets_frt
+    vpc_id: "{{ global_var_frt_vpc_id }}"
+    region: "{{ global_var_frt_region }}"
+    subnets:
+      - cidr: "{{ global_var_frt_vpc_group }}.20.0/24"
+        az: "{{ global_var_frt_region }}a"
+        tags:
+          Name: "{{ global_var_services_subnet_name }}"
+          AName: "{{ global_var_services_subnet_name }}-{{ global_var_frt_region }}a"
+      - cidr: "{{ global_var_frt_vpc_group }}.21.0/24"
+        az: "{{ global_var_frt_region }}b"
+        tags:
+          Name: "{{ global_var_services_subnet_name }}"
+          AName: "{{ global_var_services_subnet_name }}-{{ global_var_frt_region }}b"
+      - cidr: "{{ global_var_frt_vpc_group }}.22.0/24"
+        az: "{{ global_var_frt_region }}c"
+        tags:
+          Name: "{{ global_var_services_subnet_name }}"
+          AName: "{{ global_var_services_subnet_name }}-{{ global_var_frt_region }}c"
+  - name: mysqlsubnets_ird
+    vpc_id: "{{ global_var_ird_vpc_id }}"
+    region: "{{ global_var_ird_region }}"
+    subnets:
+      - cidr: "{{ global_var_ird_vpc_group }}.6.0/24"
+        az: "{{ global_var_ird_region }}a"
+        tags:
+          Name: "{{ global_var_mysql_subnet_name }}"
+          AName: "{{ global_var_mysql_subnet_name }}-{{ global_var_ird_region }}a"
+      - cidr: "{{ global_var_ird_vpc_group }}.7.0/24"
+        az: "{{ global_var_ird_region }}b"
+        tags:
+          Name: "{{ global_var_mysql_subnet_name }}"
+          AName: "{{ global_var_mysql_subnet_name }}-{{ global_var_ird_region }}b"
+      - cidr: "{{ global_var_ird_vpc_group }}.8.0/24"
+        az: "{{ global_var_ird_region }}c"
+        tags:
+          Name: "{{ global_var_mysql_subnet_name }}"
+          AName: "{{ global_var_mysql_subnet_name }}-{{ global_var_ird_region }}c"
+  - name: mysqlsubnets_frt
+    vpc_id: "{{ global_var_frt_vpc_id }}"
+    region: "{{ global_var_frt_region }}"
+    subnets:
+      - cidr: "{{ global_var_frt_vpc_group }}.6.0/24"
+        az: "{{ global_var_frt_region }}a"
+        tags:
+          Name: "{{ global_var_mysql_subnet_name }}"
+          AName: "{{ global_var_mysql_subnet_name }}-{{ global_var_frt_region }}a"
+      - cidr: "{{ global_var_frt_vpc_group }}.7.0/24"
+        az: "{{ global_var_frt_region }}b"
+        tags:
+          Name: "{{ global_var_mysql_subnet_name }}"
+          AName: "{{ global_var_mysql_subnet_name }}-{{ global_var_frt_region }}b"
+      - cidr: "{{ global_var_frt_vpc_group }}.8.0/24"
+        az: "{{ global_var_frt_region }}c"
+        tags:
+          Name: "{{ global_var_mysql_subnet_name }}"
+          AName: "{{ global_var_mysql_subnet_name }}-{{ global_var_frt_region }}c"
+  - name: mongosubnets_ird
+    vpc_id: "{{ global_var_ird_vpc_id }}"
+    region: "{{ global_var_ird_region }}"
+    subnets:
+      - cidr: "{{ global_var_ird_vpc_group }}.10.0/24"
+        az: "{{ global_var_ird_region }}a"
+        tags:
+          Name: "{{ global_var_mongo_subnet_name }}"
+          AName: "{{ global_var_mongo_subnet_name }}-{{ global_var_ird_region }}a"
+
+      - cidr: "{{ global_var_ird_vpc_group }}.11.0/24"
+        az: "{{ global_var_ird_region }}b"
+        tags:
+          Name: "{{ global_var_mongo_subnet_name }}"
+          AName: "{{ global_var_mongo_subnet_name }}-{{ global_var_ird_region }}b"
+
+      - cidr: "{{ global_var_ird_vpc_group }}.12.0/24"
+        az: "{{ global_var_ird_region }}c"
+        tags:
+          Name: "{{ global_var_mongo_subnet_name }}"
+          AName: "{{ global_var_mongo_subnet_name }}-{{ global_var_ird_region }}c"
+  - name: mongosubnets_frt
+    vpc_id: "{{ global_var_frt_vpc_id }}"
+    region: "{{ global_var_frt_region }}"
+    subnets:
+      - cidr: "{{ global_var_frt_vpc_group }}.10.0/24"
+        az: "{{ global_var_frt_region }}a"
+        tags:
+          Name: "{{ global_var_mongo_subnet_name }}"
+          AName: "{{ global_var_mongo_subnet_name }}-{{ global_var_frt_region }}a"
+      - cidr: "{{ global_var_frt_vpc_group }}.11.0/24"
+        az: "{{ global_var_frt_region }}b"
+        tags:
+          Name: "{{ global_var_mongo_subnet_name }}"
+          AName: "{{ global_var_mongo_subnet_name }}-{{ global_var_frt_region }}b"
+      - cidr: "{{ global_var_frt_vpc_group }}.12.0/24"
+        az: "{{ global_var_frt_region }}c"
+        tags:
+          Name: "{{ global_var_mongo_subnet_name }}"
+          AName: "{{ global_var_mongo_subnet_name }}-{{ global_var_frt_region }}c"
+  - name: cardsubnets_ird
+    vpc_id: "{{ global_var_ird_vpc_id }}"
+    region: "{{ global_var_ird_region }}"
+    subnets:
+      - cidr: "{{ global_var_ird_vpc_group }}.15.0/24"
+        az: "{{ global_var_ird_region }}a"
+        tags:
+          Name: "{{ global_var_card_subnet_name }}"
+          AName: "{{ global_var_card_subnet_name }}-{{ global_var_ird_region }}a"
+      - cidr: "{{ global_var_ird_vpc_group }}.16.0/24"
+        az: "{{ global_var_ird_region }}b"
+        tags:
+          Name: "{{ global_var_card_subnet_name }}"
+          AName: "{{ global_var_card_subnet_name }}-{{ global_var_ird_region }}b"
+      - cidr: "{{ global_var_ird_vpc_group }}.17.0/24"
+        az: "{{ global_var_ird_region }}c"
+        tags:
+          Name: "{{ global_var_card_subnet_name }}"
+          AName: "{{ global_var_card_subnet_name }}-{{ global_var_ird_region }}c"
+  - name: cardsubnets_frt
+    vpc_id: "{{ global_var_frt_vpc_id }}"
+    region: "{{ global_var_frt_region }}"
+    subnets:
+      - cidr: "{{ global_var_frt_vpc_group }}.15.0/24"
+        az: "{{ global_var_frt_region }}a"
+        tags:
+          Name: "{{ global_var_card_subnet_name }}"
+          AName: "{{ global_var_card_subnet_name }}-{{ global_var_frt_region }}a"
+      - cidr: "{{ global_var_frt_vpc_group }}.16.0/24"
+        az: "{{ global_var_frt_region }}b"
+        tags:
+          Name: "{{ global_var_card_subnet_name }}"
+          AName: "{{ global_var_card_subnet_name }}-{{ global_var_frt_region }}b"
+      - cidr: "{{ global_var_frt_vpc_group }}.17.0/24"
+        az: "{{ global_var_frt_region }}c"
+        tags:
+          Name: "{{ global_var_card_subnet_name }}"
+          AName: "{{ global_var_card_subnet_name }}-{{ global_var_frt_region }}c"
+
+### End Networking Section ###
+
+### Mysql section ###
+
+global_var_mysql_port: 4417
+main_mysql_target_helper: "tag_AName_{{ global_var_country_code }}_{{ global_var_product }}_{{ global_var_environment }}_mysql_eu_west_1a"
+main_rds_target_helper: "{{ global_var_country_code }}-{{ global_var_product }}-{{ global_var_environment }}-rds"
+### Mongo Section ####
+global_var_mongo_release_enable_key: "psmdb-42"
+global_var_mongo_port: 27017
+global_var_mongo_s3_bucket: "{{ global_var_country_code }}-{{ global_var_product }}"
+global_var_mongo_secretkey_path: "deployments"
+global_var_mongo_replica_keyfile: "replica_secret.key"
+global_var_mongo_config_file: "/etc/mongod.conf"
+global_var_mongo_key_folder: "/opt/mongo"
+global_var_mongo_arb_folder: "/data/arb"
+global_var_mongo_key_local_deploy_folder: "{{ lookup('env','DO_ANSIBLE_HOME') }}/{{ global_var_country }}/{{ global_var_product }}/deployments"
+global_var_replicatset_name: "billboxRepl"
+master_mongo_target_helper: "tag_AName_{{ global_var_country_code }}_{{ global_var_product }}_{{ global_var_environment }}_mongo_eu_west_1a"
+arbiter_mongo_target_helper: "tag_AName_{{ global_var_country_code }}_{{ global_var_product }}_{{ global_var_environment }}_mongo_eu_central_1a"
+global_var_mongo_s3_object_details:
+  mongokeyfile:
+    bucket: "{{ global_var_mongo_s3_bucket }}"
+    objpath: "{{ global_var_mongo_secretkey_path }}/{{ global_var_environment }}/{{ global_var_mongo_replica_keyfile }}"
+    dest_path: "/tmp/{{ global_var_mongo_replica_keyfile }}"
+    src: "{{ global_var_mongo_key_local_deploy_folder }}/{{ global_var_environment }}/{{ global_var_mongo_replica_keyfile }}"
+
+global_var_mongo_s3_createbucket_details:
+- {
+    name: "{{ global_var_mongo_s3_bucket }}",
+    region: "{{ global_var_ird_region }}"
+}
+global_var_mongo_security_random_generate_tofile_details:
+- {
+  length: 100,
+  password_file: "{{ global_var_mongo_key_local_deploy_folder }}/{{ global_var_environment }}/{{ global_var_mongo_replica_keyfile }}"
+}
+global_var_mongo_dump_folder: "/tmp/mongodump"
+global_var_release_version: "2.0.0"
+global_var_mongo_s3_seed_path: backups
+global_var_mongo_seed_file: mongodump_prod_2020_12_12.tar.gz
+### End Mongo Section ###
+
+### Container Sectioin
+global_var_shared_coreserver_name: "coreserver"
+global_var_shared_coreserver_port: 9191
+global_var_shared_posapiserver_name: "posapiserver"
+global_var_shared_posapiserver_port: 8082
+global_var_services_details:
+    configserver:
+      name: "configserver"
+      hostPort: 8081
+      containerPort: 8081
+      logToken: 695cbf2b-4694-485c-93deee2-0122562f81fc
+      image: "docker.io/dreamoval/smartgrid-config:0.0.1-SNAPSHOT.24"
+    coreserver:
+      name: "{{ global_var_shared_coreserver_name }}"
+      hostPort: 8080
+      containerPort: 8080
+      intPort: "{{ global_var_shared_coreserver_port }}"
+      mainPort: 9595
+      logToken: 38d97bf1-3e4b-4ebf-aa36-f717ce549bcc
+      # logToken: 891f1e04-f62f-4bf2-9a6f-0878d9fbc8ef
+      application_name: core
+      config_name: "core"
+      domain: "www.usebillbox.com"
+      domain2: "usebillbox.com"
+      domains:
+       - "www.usebillbox.com"
+       - "usebillbox.com"
+      albPriority: 1
+      intAlbPriority: 7
+      # image: "quay.io/dreamoval/billbox_core:release-2.0.1-SNAPSHOT.89"
+      image: "{{ local_vars_coreserver_image | default('docker.io/dreamoval/billbox-core:datadog-release-2.1.4-e06.419') }}"
+    corenginxserver:
+      name: "nginxserver"
+      hostPort: 80
+      containerPort: 80
+      image: "docker.io/dreamoval/billbox-nginx:dev-10"
+    proxynginxserver:
+      name: "proxyserver"
+      # hostPort: 443
+      # containerPort: 443
+      image: "docker.io/dreamoval/billbox-nginx:dev-45"
+    marketplaceserver:
+      name: "marketplaceserver"
+      hostPort: 8001
+      containerPort: 8001
+      albPriority: 2
+      application_name: marketplace
+      logToken: f55f66c6-fb82-42c6-a255-d9196a51e510
+      config_name: marketplace
+      domain: "marketplace.usebillbox.com"
+      image: "docker.io/dreamoval/billbox-marketplace:34"
+    templateengineserver:
+      name: "templateengineserver"
+      logToken: 267df814-8a20-48df-ad33-b373e3a330cb
+      hostPort: 8074
+      containerPort: 8074
+      application_name: "template-engine"
+      config_name: "template-engine"
+      image: "docker.io/dreamoval/smartgrid-template-engine:1.0-SNAPSHOT.53"
+    ussdserver:
+      name: "ussdserver"
+      logToken: 8bb05565-51f8-4fb2-bf5e-14e68a0eceb9
+      # logToken: 91c12362-51fd-4675-b3ab-3ec58645c90c
+      application_name: ussd
+      config_name: "ussd"
+      albPath: "/ussd/*" 
+      albPath2: "/ussd"     
+      hostPort: 8083
+      containerPort: 8083      
+      albPriority: 3
+      # domain: ussd.usebillbox.com
+      domains: 
+        - ussd.usebillbox.com
+        - ussd.slydepay.com
+      image: "docker.io/dreamoval/billbox-ussd:0.0.1-SNAPSHOT.430"
+      # image: "nexus.doersops.com/bb_ussd_gh:datadog-0.0.1-SNAPSHOT.349"
+    webposserver:
+      name: "webposserver"
+      hostPort: 8000
+      containerPort: 8000
+      albPriority: 4
+      logToken: d2e5193b-a32e-411a-80f9-12393c97fa74
+      application_name: webpos
+      config_name: webpos
+      domain: "webpos.usebillbox.com"
+      # image: "nexus.doersops.com/bb_webpos:19"
+      image: "docker.io/dreamoval/billbox-webpos:92"
+    posapiserver:
+      name: "{{ global_var_shared_posapiserver_name }}"
+      hostPort: "{{ global_var_shared_posapiserver_port }}"
+      containerPort: "{{ global_var_shared_posapiserver_port }}"
+      albPriority: 5
+      logToken: 30d4b1c8-81d2-4557-949f-272060c5008b
+      # logToken: 9d0d6cf5-a66a-41a5-ae21-64d6a985bea1
+      application_name: posapi
+      config_name: posapi
+      domain: "posapi.usebillbox.com"
+      image: "docker.io/dreamoval/billbox-posapi:release-1.0.7.161"
+    cardhandlerserver:
+      name: "cardhandlerserver"
+      hostPort: 8085
+      containerPort: 8085
+      albPriority: 6
+      logToken: 1523e9df-651c-47a6-bae3-0deae3318776
+      # logToken: 3c12dde6-b8c1-4b34-8e0a-d79868e625b4
+      application_name: cardhandler
+      config_name: cardhandler
+      domain: "cardhandler.usebillbox.com"
+      # image: "quay.io/dreamoval/sg-card-handler:billbox-0.0.1-SNAPSHOT.18"
+      image: "docker.io/dreamoval/billbox-cardhandler:billbox-0.0.1-SNAPSHOT.55"
+    schedulerserver:
+      name: "schedulerserver"
+      hostPort: 8054
+      containerPort: 8054
+      albPriority: 7
+      application_name: scheduler
+      config_name: scheduler
+      image: "docker.io/dreamoval/billbox-scheduler:10"
+    monitoringserver:
+      name: datadog-agent
+      image: "datadog/agent:latest"
+    keycloakserver:
+      name: "keycloakserver"
+      hostPort: 8080
+      containerPort: 8080
+      logToken:
+      application_name: "keycloakserver"
+      domain: "sso.usebillbox.com"
+      albPriority: 12
+      image: "docker.io/dreamoval/kowribusiness-keycloak-themed:19.0.3-legacy.16"  
+    securecoreserver:
+      name: "securecoreserver"
+      hostPort: 8080
+      containerPort: 8080
+      intPort: 9191
+      mainPort: 9595
+      logToken: 6257a461-3422-42cf-856b-bb8b71c7183e
+      application_name: securecoreserver
+      config_name: "securecoreserver"
+      domain: "api.usebillbox.com"
+      domains:
+      - "api.usebillbox.com"
+      albPriority: 13
+      # image: "docker.io/dreamoval/billbox-core:feature-2.1.4-keycloak.311"
+      image: "docker.io/dreamoval/bilbox-core:tomcat-202203091845"
+    kowribusinessserver:
+      name: "kowribusinessserver"
+      hostPort: 8080
+      containerPort: 8080
+      intPort: 9191
+      mainPort: 9595
+      logToken: 11ee054a-5df0-4501-bde0-c341878473aa
+      application_name: kowribusiness
+      config_name: "kowribusiness"
+      domain: "business.kowri.app"
+      domains:
+      - "business.kowri.app"
+      albPriority: 15
+      # image: "docker.io/dreamoval/billbox-core:dev-2.1.4-SNAPSHOT.145"
+      image: "{{ local_vars_kowribusinessserver_image | default('docker.io/dreamoval/billbox-core:release-3.1.1-e04.526') }}"
+    kowriexpcoreserver:
+      name: "kowriexpcoreserver"
+      hostPort: 8080
+      containerPort: 8080
+      intPort: 9191
+      mainPort: 9595
+      logToken: 49656544-aaf9-4cf8-9987-b5b48a5f6c87
+      application_name: kowriexpcore
+      config_name: "kowriexpcore"
+      domain: "core.kowri.app"
+      domains:
+      - "core.kowri.app"
+      albPriority: 20
+      # image: "docker.io/dreamoval/billbox-core:dev-2.1.4-SNAPSHOT.145"
+      image: "docker.io/dreamoval/billbox-core:feature-3.0.0-SNAPSHOT.759"
+    messengerserver:
+      name: "messengerserver"
+      hostPort: 8055
+      containerPort: 8055
+      albPriority: 100
+      application_name: messenger
+      config_name: messenger
+      image: "docker.io/dreamoval/smartgrid-messenger:1.0-SNAPSHOT.41"
+    notificationserver:
+      name: "notificationserver"
+      hostPort: 8056
+      containerPort: 8056
+      albPriority: 101
+      application_name: notification
+      config_name: notification
+      image: "docker.io/dreamoval/smartgrid-lns:0.0.1-SNAPSHOT.32"
+    kowrimplaceserver:
+      name: "kowrimplaceserver"
+      hostPort: 8001
+      containerPort: 8001
+      albPriority: 23
+      application_name: kowrimktplace
+      config_name: marketplace
+      domain: "collections.kowri.app"
+      image: "docker.io/dreamoval/billbox-marketplace-showcase:marketplace-extra-25"
+    kb_integration_mtndataserver:
+      name: "kbintegrationmtndata"
+      hostPort: 9890
+      containerPort: 9890
+      application_name: mtndata
+      config_name: "mtndata"
+      logToken: "55c68711-4d52-43bd-9696-96df4d43a088"
+      image: "docker.io/dreamoval/devgrid-integration-mtndata:1.1.0.29"
+    kb_integration_mtnfibreserver:
+      name: "kbintegrationmtnfibre"
+      hostPort: 9891
+      containerPort: 9891
+      application_name: mtnfibre
+      config_name: "mtnfibre"
+      image: "docker.io/dreamoval/devgrid-integration-mtnfiber:0.0.1-SNAPSHOT.16"                         
+    kb_integration_origginecgserver:
+      name: "kbintegrationorigginecg"
+      hostPort: 9892
+      containerPort: 9892
+      application_name: origginecg
+      config_name: "origginecg"
+      image: "docker.io/dreamoval/devgrid-integration-origginecg:release-1.0.0.3"
+    kb_integration_appsnmobileserver:
+       name: "kbintegrationappsnmobile"
+       hostPort: 9898
+       containerPort: 9898
+       application_name: appsnmobile
+       config_name: "appsnmobile"
+       image: "docker.io/dreamoval/kowri-integration-appsnmobile:1.0.1.21"
+    kb_integration_ghcardserver:
+      name: "kbintegrationghcard"
+      hostPort: 9895
+      containerPort: 9895
+      application_name: ghcard
+      config_name: "ghcard"
+      image: "docker.io/dreamoval/devgrid-integration-ghcard:1.0.0.5"
+    kb_integration_mtnopenapiserver:
+      name: "kbintegrationmtnopenapi"
+      hostPort: 9095
+      containerPort: 9095
+      logToken: "27e104d5-98fb-4f1d-9700-982e56892acf"
+      application_name: mtnopenapi
+      config_name: "mtnopenapi"
+      image: "{{ local_vars_kb_integration_mtnopenapiserver_image | default('docker.io/dreamoval/devgrid-integration-mtn-openapi:release-1.0.0.26') }}"

@@ -1,0 +1,61 @@
+---
+proxy_ghmtnova_vhost_file: "forward_ghmtn_ova.conf"
+ghmtnova_upstream_host1: "10.206.72.2:8310"
+ghmtnova_upstream_host1_mon_type: tcp
+ghmtnova_upstream_host1_mon_scheme: http
+ghmtnova_upstream_host2: "10.206.72.2:8323"
+ghmtnova_upstream_host2_mon_type: tcp
+ghmtnova_upstream_host2_mon_scheme: http
+webserverfamily_nginx_ppa_version_enable: true
+webserverfamily_nginx_enable: true
+webserverfamily_nginx_install_details:
+  - nginx
+  - nginx-extras
+webserverfamily_nginx_push_configfiles_details:
+  forward_ghmtnova:
+    src: "nginx/_generic_vhost.conf.j2"
+    dest: "/etc/nginx/sites-available/{{ proxy_ghmtnova_vhost_file }}"
+    owner: "root"
+    group: "root"
+    port: "{{ global_ghmtnova_nginx_port }}"
+    ssl_enabled: false
+    domain_names:
+      - "localhost"
+    logging_enabled: true
+    access_log_file: "/var/log/nginx/forward_ghmtnova_nginx_proxy_access.log"
+    access_format: "jsonlog"
+    error_log_file: "/var/log/nginx/forward_ghmtnova_nginx_proxy_error.log"
+    locations:
+      - context: "/test"
+        instructions:
+          - "access_log off"
+          - "return 200"
+      - context: "/payment/"
+        instructions:
+          - "proxy_set_header X-Forwarded-For $server_addr"
+          - "proxy_pass {{ ghmtnova_upstream_host1_mon_scheme }}://{{ ghmtnova_upstream_host1 }}/"
+      - context: "/account/"
+        instructions:
+          - "proxy_set_header X-Forwarded-For $server_addr"
+          - "proxy_pass {{ ghmtnova_upstream_host2_mon_scheme }}://{{ ghmtnova_upstream_host2 }}/"
+webserverfamily_nginx_deletefiles_details:
+  - "/etc/nginx/sites-enabled/default"
+webserverfamily_nginx_common_enable_sites_details_hash:
+  ghmtnova:
+    vhost: "{{ proxy_ghmtnova_vhost_file }}"
+webserverfamily_nginx_common_validation_enable: true
+webserverfamily_nginx_common_restart_enabled: true
+elasticbeats_configuration_details:
+  ghmtnova:
+      src: "monitor.yml.j2"
+      dest: "/etc/heartbeat/monitors.d/ghmtnova.yml"
+      type: "{{ ghmtnova_upstream_host1_mon_type }}"
+      name: "ghmtnova"
+      enabled: true
+      schedule: "@every 30s"
+      hosts: ["{{ghmtnova_upstream_host1}}","{{ghmtnova_upstream_host2}}"]
+elasticbeats_systemd_details: 
+  restart:
+      name: "heartbeat-elastic"
+      state: "restarted"
+elk_instance_name: "{{ hostvars[inventory_hostname]['ec2_placement'] }}"

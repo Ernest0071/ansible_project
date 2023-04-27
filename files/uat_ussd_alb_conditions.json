@@ -1,0 +1,8 @@
+[
+    {
+        "Field": "host-header",
+        "HostHeaderConfig": {
+            "Values": ["kbussd.mykowri.com", "bbussd.doersops.com"]
+        }
+    }
+]

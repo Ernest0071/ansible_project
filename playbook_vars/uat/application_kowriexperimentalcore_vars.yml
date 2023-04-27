@@ -1,0 +1,261 @@
+
+kowri_experimental_core_main_port: 9595
+kowri_experimental_core_int_port: 9191
+kowri_experimental_core_tomcat_jmx_port: 13000
+kowri_experimental_core_server_enabled: true
+bb_ctive_region: "{{ global_var_ird_region }}"
+bb_ctive_priv_dns_namespace: "{{ global_var_priv_dns_namespace }}"
+kowri_experimental_core_server_task_family_name: "{{ global_var_country_code }}-{{ global_var_product }}-{{global_var_environment}}-{{ global_var_services_details.kowriexpcoreserver.name }}"
+kowri_experimental_core_server_task_networkmode: awsvpc
+kowri_experimental_core_server_task_executionRoleArn: "{{ hostvars.localhost.reg_ecs_role_facts.iam_roles.0.arn }}"
+kowri_experimental_core_server_task_ecsmode: FARGATE
+kowri_experimental_core_server_task_cpu: 1024
+kowri_experimental_core_server_task_memory: 3072
+kowri_experimental_core_server_task_container_name: "{{ global_var_services_details.kowriexpcoreserver.name }}"
+kowri_experimental_core_server_task_container_image: "{{ global_var_services_details.kowriexpcoreserver.image }}"
+kowri_experimental_core_server_task_container_cpu: 1024
+kowri_experimental_core_server_task_container_memory: 3072
+kowri_experimental_core_server_task_container_memoryReservation: 1024
+# kowri_experimental_core_server_task_container_credentials_parameter: "{{ hostvars.localhost.reg_quayio_secrets_facts.ARN }}"
+kowri_experimental_core_server_task_container_credentials_parameter: "{{ hostvars.localhost.reg_dockerhub_secrets_facts.ARN }}"
+kowri_experimental_core_server_task_container_portmap_containerport: 8080
+kowri_experimental_core_server_task_container_portmap_hostport: 8080
+kowri_experimental_core_server_task_container_essential: true
+kowri_experimental_core_sidecar_server_task_container_essential: true
+kowri_experimental_core_image_path: "{{ global_var_cloudfront_base_url }}/static/images/"
+kowri_experimental_core_download_path: "{{ global_var_cloudfront_base_url }}/download/"
+kowri_experimental_core_server_owasp_resc: classpath:*.properties
+kowri_experimental_core_server_auth_cache_ttl_mins: "10"
+kowri_experimental_core_server_max_login_attempt: "3"
+kowri_experimental_core_server_max_use_forward_headers: "false"
+kowri_experimental_core_server_kafka_enable: "true"
+kowri_experimental_core_server_task_container_java_vars:
+  - "-Xmx{{ kowri_experimental_core_server_task_container_memory }}M"
+  - "-XX:PermSize=256m -XX:MaxPermSize={{ kowri_experimental_core_server_task_container_memoryReservation }}M"
+  - "-XX:+UseConcMarkSweepGC -XX:+CMSParallelRemarkEnabled"
+  - "-XX:+UseCMSInitiatingOccupancyOnly -XX:CMSInitiatingOccupancyFraction=70"
+  - "-XX:+ScavengeBeforeFullGC -XX:+CMSScavengeBeforeRemark"
+  - "-XX:+UseGCLogFileRotation -XX:NumberOfGCLogFiles=10 -XX:GCLogFileSize=100M"
+  - "-Dsun.net.inetaddr.ttl=300"
+  - "-Djava.rmi.server.hostname=localhost"
+  - "-Dcom.sun.management.jmxremote"
+  - "-Dcom.sun.management.jmxremote.port={{ kowri_experimental_core_tomcat_jmx_port }}"
+  - "-Dcom.sun.management.jmxremote.ssl=False"
+  - "-Dcom.sun.management.jmxremote.authenticate=False"
+  - "-Dhttps.protocols=TLSv1.2,TLSv1.1"
+  - "-Djdk.tls.client.protocols=TLSv1.2,TLSv1.1"
+  - "-DLOGENTRIES_TOKEN={{ global_var_services_details.kowriexpcoreserver.logToken }}"
+  - "-Dauth.attempt.cache.duration.mins=10"
+  - "-Dserver.use-forward-headers=false"
+  - "-Ddd.agent.host=localhost"
+  - "-Ddd.agent.port=8126"
+  - "-Ddd.logs.injection=true"
+  - "-Ddd.service={{ kowri_experimental_core_service_name }}"
+  - "-Ddd.env={{ global_var_environment }}"
+  - "-Ddd.version={{ global_var_services_details.kowriexpcoreserver.image.split(':')[1] }}"
+  # - "-javaagent:/opt/datadog/dd-java-agent.jar"
+kowri_experimental_core_server_task_container_secretenv_definition:
+  mainport:
+    id: "{{ global_var_environment }}_KOWRI_EXPERIMENTAL_CORE_MAIN_PORT"
+    name: KOWRI_EXPERIMENTAL_CORE_MAIN_PORT
+    content: "{{ kowri_experimental_core_main_port }}"
+  intport:
+    id: "{{ global_var_environment }}_KOWRI_EXPERIMENTAL_CORE_INT_PORT"
+    name: KOWRI_EXPERIMENTAL_CORE_INT_PORT
+    content: "{{ kowri_experimental_core_int_port }}"
+  mongodbname:
+    id: "{{ global_var_environment }}_KOWRI_EXPERIMENTAL_CORE_MONGO_DBNAME"
+    name: KOWRI_EXPERIMENTAL_CORE_MONGO_DBNAME
+    content: "{{ vault_mongo_core_dbname }}"
+  mongodbrepllist:
+    id: "{{ global_var_environment }}_KOWRI_EXPERIMENTAL_CORE_MONGO_REPL_LIST"
+    name: KOWRI_EXPERIMENTAL_CORE_MONGO_REPL_LIST
+    content: "{{ hostvars.localhost.reg_mongo_cluster_uri }}"
+  mongodbusername:
+    id: "{{ global_var_environment }}_KOWRI_EXPERIMENTAL_CORE_MONGO_USERNAME"
+    name: KOWRI_EXPERIMENTAL_CORE_MONGO_USERNAME
+    content: "{{ vault_mongo_core_username }}"
+  mongodbpassword:
+    id: "{{ global_var_environment }}_KOWRI_EXPERIMENTAL_CORE_MONGO_PASSWORD"
+    name: KOWRI_EXPERIMENTAL_CORE_MONGO_PASSWORD
+    content: "{{ vault_mongo_core_password }}"
+  redishost:
+    id: "{{ global_var_environment }}_KOWRI_EXPERIMENTAL_CORE_REDIS_HOST"
+    name: KOWRI_EXPERIMENTAL_CORE_REDIS_HOST
+    content: "{{ hostvars.localhost.reg_elasticache_facts }}"
+  redisport:
+    id: "{{ global_var_environment }}_KOWRI_EXPERIMENTAL_CORE_REDIS_PORT"
+    name: KOWRI_EXPERIMENTAL_CORE_REDIS_PORT
+    content: "{{ global_var_redis_port }}"
+  mon_api_key:
+    id: "{{ global_var_environment }}_DD_API_KEY"
+    name: DD_API_KEY
+    content: "{{ vault_datadog_api_key }}"
+  full_mongo_uri:
+    id: "{{ global_var_environment }}_KOWRI_EXPERIMENTAL_CORE_MONGO_URI"
+    name: KOWRI_EXPERIMENTAL_CORE_MONGO_URI
+    content: "mongodb://{{ vault_mongo_core_username }}:{{ vault_mongo_core_password }}@{{ hostvars.localhost.reg_mongo_cluster_uri }}/{{ vault_mongo_core_dbname }}?replicaSet={{ global_var_replicatset_name }}&readPreference=secondaryPreferred"
+
+kowri_experimental_core_server_task_container_secretenv:
+  - valueFrom: "{{ global_var_environment }}_KOWRI_EXPERIMENTAL_CORE_MAIN_PORT"
+    name: BB_APP_MAIN_PORT
+  - valueFrom: "{{ global_var_environment }}_KOWRI_EXPERIMENTAL_CORE_INT_PORT"
+    name: BB_APP_INT_PORT
+  - valueFrom: "{{ global_var_environment }}_KOWRI_EXPERIMENTAL_CORE_MONGO_DBNAME"
+    name: BB_MONGO_DBNAME
+  - valueFrom: "{{ global_var_environment }}_KOWRI_EXPERIMENTAL_CORE_MONGO_REPL_LIST"
+    name: BB_MONGO_REPL_LIST
+  - valueFrom: "{{ global_var_environment }}_KOWRI_EXPERIMENTAL_CORE_MONGO_USERNAME"
+    name: BB_MONGO_USERNAME
+  - valueFrom: "{{ global_var_environment }}_KOWRI_EXPERIMENTAL_CORE_MONGO_PASSWORD"
+    name: BB_MONGO_PASSWORD
+  - valueFrom: "{{ global_var_environment }}_KOWRI_EXPERIMENTAL_CORE_REDIS_HOST"
+    name: BB_REDIS_HOST
+  - valueFrom: "{{ global_var_environment }}_KOWRI_EXPERIMENTAL_CORE_REDIS_PORT"
+    name: BB_REDIS_PORT
+  - valueFrom: "{{ global_var_environment }}_KOWRI_EXPERIMENTAL_CORE_MONGO_URI"
+    name: BB_MONGO_URI
+#  - valueFrom: "{{ global_var_environment }}_KOWRI_EXPERIMENTAL_CORE_NEW_RELIC_LICENSE_KEY"
+#    name: NEW_RELIC_LICENSE_KEY
+
+
+kowri_experimental_corenginx_server_task_container_env:
+  # - name: FULL_GIT_URL
+  #   value: "https://{{ vault_git_username }}:{{ vault_git_token }}@bitbucket.org/kowri/kb-nginx-configuration.git"
+  # - name: CONF_FILE
+  #   value: "coreserver_uat.conf"
+  - name: NGINX_LISTEN_PORT
+    value: "{{ kowri_experimental_core_proxyserver_listen_port }}"
+  - name: NGINX_SERVER_HOSTNAME
+    value: "{{ kowri_experimental_core_proxyserver_domain_name }}"
+  - name: TEMPLATE_CONF_FILE
+    value: "{{ kowri_experimental_core_proxyserver_template_name }}"
+  - name: NGINX_PROXY_PASS
+    value: "localhost:{{ kowri_experimental_core_proxyserver_proxypass_port }}"
+  - name: NGINX_ALLOW_SUBNET
+    value: "{{ global_var_ird_vpc_cidr }}"  
+  - name: NGINX_HEADER_CSP
+    value: "{{ kowri_experimental_core_proxyserver_csp_values }}"  
+kowri_experimental_core_server_task_container_env:
+  - name: JAVA_OPTS
+    value: "{{ kowri_experimental_core_server_task_container_java_vars | join(' ') }}"
+  - name: BB_APP_DOWNLOAD_PATH
+    value: "{{ kowri_experimental_core_download_path }}"
+  - name: BB_APP_IMAGE_PATH
+    value: "{{ kowri_experimental_core_image_path }}"
+  - name: BB_APP_ELK_URL
+    value: "https://{{ hostvars.localhost.reg_elasticsearch_cluster.Endpoints.vpc }}"
+  - name: BB_APP_KAFKA_BOOSTRAP
+    value: "{{ hostvars.localhost.reg_kafka_bootstrap_facts_ips_and_port }}"
+  - name: BB_APP_CONTEXROOT
+    value: "https://{{ global_var_services_details.kowriexpcoreserver.domain }}"
+  - name: BB_APP_IMAGEROOT
+    value: "{{ global_var_cloudfront_base_url }}"
+  - name: FULL_GIT_URL
+    value: "https://{{ vault_git_username }}:{{ vault_git_token }}@bitbucket.org/kowri/uat-kb-groovy-features.git"
+  - name: BB_APP_S3_BUCKET
+    value: "public.uat.usebillbox.com"
+  - name: BB_APP_S3_ENDPOINTURL
+    value: "https://s3-{{ global_var_ecs_region }}.amazonaws.com"
+  - name: BB_APP_DATA_SHARE
+    value: "/opt/repo"
+  - name: BB_APP_S3_CDN
+    value: "True"
+  - name: BB_OWASP_RESC
+    value: "{{kowri_experimental_core_server_owasp_resc}}"
+  - name: BB_MAX_LOGIN_ATTEMPT
+    value: "{{kowri_experimental_core_server_max_login_attempt}}"
+  - name: BB_AUTH_CACHE_TTL
+    value: "{{kowri_experimental_core_server_auth_cache_ttl_mins}}"
+  - name: BB_USE_FORWARD_HEADERS
+    value: "{{ kowri_experimental_core_server_max_use_forward_headers }}"
+  - name: BB_SETTLEMENT_WEEKEND_ENABLE
+    value: "True"
+  - name: BB_SESSION_TIMEOUT
+    value: "15"
+  - name: BB_CORS_ORIGIN_ALLOW
+    value: "localhost:11000"
+  - name: BB_KAFKA_ENABLE
+    value: "{{ kowri_experimental_core_server_kafka_enable }}"
+kowri_experimental_core_server_task_container_mon_env_docker_env_tags:
+  ENVIRONMENT: "{{ global_var_environment }}"
+kowri_experimental_core_server_task_container_mon_env:
+  - name: "DD_DOCKER_ENV_AS_TAGS"
+    # value: '{{ { "ENVIRONMENT": global_var_environment } | to_json }}'
+    value: "{{ kowri_experimental_core_server_task_container_mon_env_docker_env_tags | to_json }}"
+  - name: "DD_APM_NON_LOCAL_TRAFFIC"
+    value: "true"
+  - name: "ECS_FARGATE"
+    value: "true"
+  - name: "DD_APM_ENABLED"
+    value: "true"
+  - name: "DD_PROCESS_AGENT_ENABLED"
+    value: "true"
+  - name: "DD_DOGSTATSD_NON_LOCAL_TRAFFIC"
+    value: "true"
+  - name: "DD_DOGSTATSD_PORT"
+    value: "8125"
+  - name: "DD_APM_RECEIVER_PORT"
+    value: "8126"
+  - name: "DD_ENV"
+    value: "{{ global_var_environment }}"
+  - name: "DD_SERVICE"
+    value: "{{ kowri_experimental_core_service_name }}"
+  - name: "DD_VERSION"
+    value: "{{ global_var_services_details.kowriexpcoreserver.image.split(':')[1] }}"
+kowri_experimental_core_server_task_container_log_env:
+  - name: "DD_ENV"
+    value: "{{ global_var_environment }}"
+  - name: "DD_SERVICE"
+    value: "{{ kowri_experimental_core_service_name }}"
+  - name: "DD_VERSION"
+    value: "{{ global_var_services_details.kowriexpcoreserver.image.split(':')[1] }}"
+kowri_experimental_core_server_task_container_mon_secretenv:
+  - valueFrom: "{{ global_var_environment }}_DD_API_KEY"
+    name: DD_API_KEY
+kowri_experimental_core_server_task_container_log_driver: awslogs
+kowri_experimental_core_server_task_container_log_logsgroup: "{{ global_var_country_code }}-{{ global_var_product }}-{{ global_var_environment }}-ecsgroup"
+kowri_experimental_core_server_task_container_log_logsregion: "{{ global_var_ird_region }}"
+kowri_experimental_core_server_task_container_log_logsprefix: "{{ global_var_country_code }}-{{ global_var_product }}-{{ global_var_environment }}-"
+kowri_experimental_core_alb_arn: "{{ hostvars.localhost.reg_alb_facts.load_balancers.0.load_balancer_arn }}"
+kowri_experimental_core_service_name: "{{global_var_country_code}}-{{global_var_product}}-{{global_var_environment}}-{{ global_var_services_details.kowriexpcoreserver.name }}-service"
+kowri_experimental_core_targetgroup_name: "{{ global_var_product }}-{{ global_var_environment }}-{{ global_var_services_details.kowriexpcoreserver.application_name }}TG"
+kowri_experimental_core_targetgroup_protocol: "http"
+# kowri_experimental_core_ssl_targetgroup_name: "{{ global_var_product }}-{{ global_var_environment }}-{{ global_var_services_details.kowriexpcoreserver.application_name }}SSLTG"
+# kowri_experimental_core_ssl_targetgroup_protocol: "https"
+kowri_experimental_core_targetgroup_success_http_code: 200
+kowri_experimental_core_targetgroup_hc_interval: 6
+kowri_experimental_core_targetgroup_hc_timeout: 5
+kowri_experimental_core_targetgroup_hc_healthycount: 3
+kowri_experimental_core_targetgroup_hc_unhealthycount: 3
+kowri_experimental_core_targetgroup_hc_path: "/login"
+kowri_experimental_core_targetgroup_hc_protocol: "http"
+# kowri_experimental_core_ssl_targetgroup_hc_protocol: "https"
+kowri_experimental_core_targetgroup_targettype: "ip"
+
+kowri_experimental_core_service_count: 1
+kowri_experimental_core_service_platform_version: 1.3.0
+kowri_experimental_core_service_hc_graceperiod: 600
+kowri_experimental_core_service_autoscalling_policy_type: "TargetTrackingScaling"
+kowri_experimental_core_service_autoscalling_min_task: "{{ kowri_experimental_core_service_count }}"
+kowri_experimental_core_service_autoscalling_max_task: 3
+kowri_experimental_core_service_mem_autoscalling_policy_name: "{{ kowri_experimental_core_server_task_family_name }}-mem-as-policy"
+kowri_experimental_core_service_cpu_autoscalling_policy_name: "{{ kowri_experimental_core_server_task_family_name }}-cpu-as-policy"
+kowri_experimental_core_service_mem_autoscalling_tracking_scaling_target_value: 70
+kowri_experimental_core_service_cpu_autoscalling_tracking_scaling_target_value: 50
+kowri_experimental_core_service_mem_autoscalling_tracking_scaling_metric_spec: "ECSServiceAverageMemoryUtilization"
+kowri_experimental_core_service_cpu_autoscalling_tracking_scaling_metric_spec: "ECSServiceAverageCPUUtilization"
+kowri_experimental_core_service_mem_autoscalling_tracking_scalout_cooldown: 60
+kowri_experimental_core_service_mem_autoscalling_tracking_scalin_cooldown: 60
+kowri_experimental_core_service_cpu_autoscalling_tracking_scalout_cooldown: 120
+kowri_experimental_core_service_cpu_autoscalling_tracking_scalin_cooldown: 180
+kowri_experimental_core_service_awscli_enabled: false
+# kowri_experimental_core_service_scheduled_autoscalling: true
+# kowri_experimental_core_service_wake_cron: "00 06 ? * MON-FRI *"
+# kowri_experimental_core_service_sleep_cron: "59 20 ? * MON-FRI *"
+kowri_experimental_core_proxyserver_listen_port: "80"
+kowri_experimental_core_proxyserver_name: kowriexperimentalcoreproxy
+kowri_experimental_core_proxyserver_domain_name: "{{ global_var_services_details.kowriexpcoreserver.domain }}"
+kowri_experimental_core_proxyserver_template_name: "kb_core.conf.template"
+kowri_experimental_core_proxyserver_proxypass_port: "{{ global_var_services_details.kowriexpcoreserver.containerPort }}"
+kowri_experimental_core_proxyserver_csp_values: "frame-ancestors 'none'; script-src 'self' 'unsafe-eval' 'unsafe-inline' https://ajax.googleapis.com https://fonts.googleapis.com https://www.gstatic.com https://www.google-analytics.com https://www.googletagmanager.com; font-src 'self' https://fonts.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' https://www.google.com https://www.google.com.gh"

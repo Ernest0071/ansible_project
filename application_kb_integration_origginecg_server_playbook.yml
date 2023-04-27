@@ -1,0 +1,270 @@
+- import_playbook: fact_gatherer_playbook.yml
+  tags:
+    - facts
+
+- import_playbook: aws_service_discovery_route53_playbook.yml
+  tags:
+    - facts
+
+- hosts: localhost
+  connection: local
+  gather_facts: true
+  vars_files:
+    - playbook_vars/{{ global_var_environment }}/global_vars.yml
+    - playbook_vars/{{ global_var_environment }}/application_kb_integration_origginecg_vars.yml
+    - playbook_vars/{{ global_var_environment }}/proxy_nginx_forward_gh_origginecg_vars.yml
+    - playbook_vars/{{ global_var_environment }}/vault/{{ global_var_environment }}_variables.vault
+  tasks:
+    - name: Kowri Business Origgin ECG|| Extracting ARN from service discovery
+      set_fact:
+        reg_kb_integration_origginecgserver_sd_dns_details: "{{ ServiceListJson | json_query(\"Services[?Name=='\" + global_var_services_details.kb_integration_origginecgserver.name+\"']\") }}"
+    - debug: var=reg_kb_integration_origginecgserver_sd_dns_details
+
+    - name: Kowri Business Origgin ECG|| Creating ECS Cluster
+      ecs_cluster:
+        name: "{{ global_var_ecs_clustername }}"
+        state: present
+        region: "{{ global_var_ecs_region }}"
+      when: global_var_ecs_clustername is defined 
+
+    - name: Kowri Business Origgin ECG|| Clearing Checking Folder
+      file:
+          path: "{{ global_var_configuration_git_dir }}"
+          state: absent
+      ignore_errors: true
+
+    - name: Kowri Business Origgin ECG|| Creating Kowri Business configuration git directory
+      file:
+        path: "{{ item.path }}" 
+        recurse: yes 
+        state: directory
+        # owner: "{{ ansible_user }}"
+        mode: "{{ item.mode | default('0755') }}" 
+      when: global_var_configuration_git_create_folders_details is defined
+      with_items: "{{ global_var_configuration_git_create_folders_details | default({}) }}"
+      
+
+    - name: Kowri Business Origgin ECG|| Checking out the properties files
+      git:
+        repo: "{{ item.repo }}"
+        dest: "{{ item.dir }}"
+        version: "{{ item.version }}"
+        force: yes
+      when: global_var_configuration_git_details is defined
+      with_items: "{{ global_var_configuration_git_details }}"
+
+
+    - name: Kowri Business Origgin ECG|| Encryption kb_integration_origginecg [Core] Mongo URI
+      shell: "{{ spring_cloud_cli_path | default('') }}spring encrypt 'mongodb://{{ vault_mongo_core_username }}:{{ vault_mongo_core_password }}@{{ hostvars.localhost.reg_mongo_cluster_uri }}/{{ vault_mongo_core_dbname }}' --key {{ vault_configserver_encryption_key }}"
+      register: reg_kb_integration_origginecg_mongo_uri
+      environment:
+        JAVA_HOME: "{{ java_home_path | default(lookup('env', 'JAVA_HOME')) }}"      
+
+    - name: Kowri Business Origgin ECG|| Encryption kb_integration_origginecg Mongo DBname
+      shell: "{{ spring_cloud_cli_path | default('') }}spring encrypt '{{ vault_mongo_core_dbname }}' --key {{ vault_configserver_encryption_key }}"
+      register: reg_kb_integration_origginecg_mongo_dbname
+      environment:
+        JAVA_HOME: "{{ java_home_path | default(lookup('env', 'JAVA_HOME')) }}"  
+
+    - name: Kowri Business Origgin ECG|| Setting Encrypted kb_integration_origginecg credential facts
+      set_fact:
+        reg_kb_integration_origginecg_mongo_uri: "{{ reg_kb_integration_origginecg_mongo_uri.stdout }}"
+        reg_kb_integration_origginecg_mongo_dbname: "{{ reg_kb_integration_origginecg_mongo_dbname.stdout }}"
+
+    - name: Kowri Business Origgin ECG|| Creating kb_integration_origginecg config file
+      template: 
+        dest: "{{ global_var_configuration_git_dir }}/{{global_var_configserver_folder}}/{{ global_var_services_details.kb_integration_origginecgserver.config_name }}-{{ global_var_environment }}.properties"
+        src: "templates/{{ global_var_services_details.kb_integration_origginecgserver.config_name }}.properties" 
+
+    - name: Kowri Business Origgin ECG|| Staging git changes
+      shell: >
+          git add *
+      args:
+        chdir: "{{ global_var_configuration_git_dir }}"
+      ignore_errors: true
+
+    - name: Kowri Business Origgin ECG|| Committing git repository
+      shell: >
+          git commit 
+          -m 'committing new tasks {{ global_var_services_details.kb_integration_origginecgserver.name }}
+          and cardhandler specific variable concens'
+      args:
+        chdir: "{{ global_var_configuration_git_dir }}"
+      ignore_errors: true
+
+    - name: Kowri Business Origgin ECG|| Pushing cardhandler changes to remote
+      shell: >
+          git push
+      args:
+        chdir: "{{ global_var_configuration_git_dir }}"
+      ignore_errors: true
+
+    - name: Kowri Business Origgin ECG||  Creating Parameter Store secrets 
+      aws_ssm_parameter_store:
+        name: "{{ item.value.id }}"
+        decryption: true 
+        region: "{{ global_var_ird_region }}"
+        string_type: "SecureString"
+        value: "{{ item.value.content }}"
+        state: "{{ item.value.state | default('present')}}"
+        overwrite_value: always # not required. choices: never;changed;always. Option to overwrite an existing value if it already exists.,String
+        description: "bb param store"
+      with_dict: "{{ kb_integration_origginecg_server_task_container_secretenv_definition }}"
+      no_log: true      
+
+    - name: Kowri Business Origgin ECG|| Creating kb_integration_origginecgServer task definition
+      ecs_taskdefinition:
+        state: present 
+        family: "{{ kb_integration_origginecg_server_task_family_name }}"
+        region: "{{ global_var_ecs_region }}"
+        execution_role_arn: "{{ kb_integration_origginecg_server_task_executionRoleArn }}"
+        task_role_arn: "{{ kb_integration_origginecg_server_task_executionRoleArn }}"
+        network_mode: "{{ kb_integration_origginecg_server_task_networkmode }}"
+        launch_type: "{{ kb_integration_origginecg_server_task_ecsmode }}"
+        cpu: "{{ kb_integration_origginecg_server_task_cpu }}"
+        memory: "{{ kb_integration_origginecg_server_task_memory }}"
+        force_create: "yes"
+        containers:
+        - name: "{{ global_var_services_details.kb_integration_origginecgserver.name }}"
+          image: "{{ kb_integration_origginecg_server_task_container_image }}"
+          cpu: "{{ kb_integration_origginecg_server_task_container_cpu }}"
+          memory: "{{ kb_integration_origginecg_server_task_container_memory }}"
+          # memoryReservation: "{{ kb_integration_origginecg_server_task_container_memoryReservation }}"
+          repositoryCredentials:
+            credentialsParameter: "{{ kb_integration_origginecg_server_task_container_credentials_parameter }}"
+          portMappings:
+          - containerPort: "{{ global_var_services_details.kb_integration_origginecgserver.containerPort }}"
+            hostPort: "{{ global_var_services_details.kb_integration_origginecgserver.hostPort }}"
+          essential: "{{ kb_integration_origginecg_server_task_container_essential }}"
+          environment: "{{ kb_integration_origginecg_server_task_container_env }}"
+          logConfiguration:
+            logDriver: "{{ kb_integration_origginecg_server_task_container_log_driver }}"
+            options:
+              awslogs-group: "{{ kb_integration_origginecg_server_task_container_log_logsgroup }}"
+              awslogs-region: "{{ kb_integration_origginecg_server_task_container_log_logsregion }}" 
+              awslogs-stream-prefix: "{{ kb_integration_origginecg_server_task_container_log_logsprefix }}"
+
+        - name: "{{ global_var_services_details.monitoringserver.name }}"
+          image: "{{ global_var_services_details.monitoringserver.image }}"
+          essential: false
+          secrets: "{{ kb_integration_origginecg_server_task_container_mon_secretenv }}"
+          environment: "{{ kb_integration_origginecg_server_task_container_mon_env }}"
+      register: reg_kb_integration_origginecg_servertaskdef 
+
+    - name: Kowri Business Origgin ECG|| Creating or Updating the ECS service kb_integration_origginecgserver
+      ecs_service:
+        state: present 
+        name: "{{ kb_integration_origginecg_service_name }}"
+        service_registries:
+          - registryArn: "{{ hostvars.localhost.reg_kb_integration_origginecgserver_sd_dns_details.0.Arn }}"
+        network_configuration:
+            assign_public_ip: no
+            security_groups: "{{ hostvars.localhost.reg_app_secgroup_ids_facts | list }}"
+            subnets: "{{ hostvars.localhost.reg_private_app_subnet_ids_facts | list }}"
+        desired_count: "{{ kb_integration_origginecg_service_count }}"
+        cluster: "{{ global_var_ecs_clustername }}"
+        task_definition: "{{ kb_integration_origginecg_server_task_family_name }}:{{ reg_kb_integration_origginecg_servertaskdef.taskdefinition.revision }}"
+        region: "{{ global_var_ecs_region }}"
+        launch_type: "{{ kb_integration_origginecg_server_task_ecsmode }}"
+
+
+    - name: Kowri Business Origgin ECG|| Creating kb_integration_origginecg MEM Scalling Policy for {{ global_var_environment }}
+      aws_application_scaling_policy:
+        state: present
+        policy_name: "{{ kb_integration_origginecg_service_mem_autoscalling_policy_name }}"
+        service_namespace: ecs
+        region: "{{ global_var_ecs_region }}"
+        resource_id: service/{{ global_var_ecs_clustername }}/{{ kb_integration_origginecg_service_name }}
+        scalable_dimension: ecs:service:DesiredCount
+        policy_type: "{{ kb_integration_origginecg_service_autoscalling_policy_type }}"
+        minimum_tasks: "{{ kb_integration_origginecg_service_autoscalling_min_task }}"
+        maximum_tasks: "{{ kb_integration_origginecg_service_autoscalling_max_task }}"
+        target_tracking_scaling_policy_configuration:
+          TargetValue: "{{ kb_integration_origginecg_service_mem_autoscalling_tracking_scaling_target_value }}"
+          PredefinedMetricSpecification:
+            PredefinedMetricType: "{{ kb_integration_origginecg_service_mem_autoscalling_tracking_scaling_metric_spec }}"
+          ScaleOutCooldown: "{{ kb_integration_origginecg_service_mem_autoscalling_tracking_scalout_cooldown }}"
+          ScaleInCooldown: "{{ kb_integration_origginecg_service_mem_autoscalling_tracking_scalin_cooldown }}"
+
+    - name: Kowri Business Origgin ECG|| Creating kb_integration_origginecg CPU Scalling Policy for {{ global_var_environment }}
+      aws_application_scaling_policy:
+        state: present
+        policy_name: "{{ kb_integration_origginecg_service_cpu_autoscalling_policy_name }}"
+        service_namespace: ecs
+        region: "{{ global_var_ecs_region }}"
+        resource_id: service/{{ global_var_ecs_clustername }}/{{ kb_integration_origginecg_service_name }}
+        scalable_dimension: ecs:service:DesiredCount
+        policy_type: "{{ kb_integration_origginecg_service_autoscalling_policy_type }}"
+        minimum_tasks: "{{ kb_integration_origginecg_service_autoscalling_min_task }}"
+        maximum_tasks: "{{ kb_integration_origginecg_service_autoscalling_max_task }}"
+        target_tracking_scaling_policy_configuration:
+          TargetValue: "{{ kb_integration_origginecg_service_cpu_autoscalling_tracking_scaling_target_value }}"
+          PredefinedMetricSpecification:
+            PredefinedMetricType: "{{ kb_integration_origginecg_service_cpu_autoscalling_tracking_scaling_metric_spec }}"
+          ScaleOutCooldown: "{{ kb_integration_origginecg_service_cpu_autoscalling_tracking_scalout_cooldown }}"
+          ScaleInCooldown: "{{ kb_integration_origginecg_service_cpu_autoscalling_tracking_scalin_cooldown }}"
+
+
+    # - name: Kowri Business Origgin ECG|| Creating a Sleep Time scheduled application autoscalling for Billbox LNS
+    #   shell: > 
+    #       aws application-autoscaling put-scheduled-action --service-namespace ecs
+    #       --scalable-dimension ecs:service:DesiredCount
+    #       --resource-id service/{{ global_var_ecs_clustername }}/{{ kb_integration_origginecg_service_name }}
+    #       --scheduled-action-name scheduled-gh-office-{{ kb_integration_origginecg_service_name }}-off-time
+    #       --schedule "cron({{ kb_integration_origginecg_service_sleep_cron | default('00 20 ? * MON-FRI *') }})"
+    #       --scalable-target-action MinCapacity={{ kb_integration_origginecg_service_scheduled_sleep_autoscalling_min_task | default(0) }},MaxCapacity={{ kb_integration_origginecg_service_scheduled_sleep_autoscalling_max_task | default(0) }}
+    #       --region {{ global_var_ecs_region }}
+    #       --profile {{ lookup('env','AWS_PROFILE') }}
+    #   when:
+    #     - global_awx_ad_hoc_shell_switch is defined
+    #     - not global_awx_ad_hoc_shell_switch
+    #     - kb_integration_origginecg_service_scheduled_autoscalling | default(false)    
+
+    # - name: Kowri Business Origgin ECGServer || Creating a Sleep Time scheduled application autoscalling for Kowri Business Origgin ECGwith awscli
+    #   shell: > 
+    #       aws application-autoscaling put-scheduled-action --service-namespace ecs
+    #       --scalable-dimension ecs:service:DesiredCount
+    #       --resource-id service/{{ global_var_ecs_clustername }}/{{ kb_integration_origginecg_service_name }}
+    #       --scheduled-action-name scheduled-gh-office-{{ kb_integration_origginecg_service_name }}-off-time
+    #       --schedule "cron({{ kb_integration_origginecg_service_sleep_cron | default('00 20 ? * MON-FRI *') }})"
+    #       --scalable-target-action MinCapacity={{ kb_integration_origginecg_service_scheduled_sleep_autoscalling_min_task | default(0) }},MaxCapacity={{ kb_integration_origginecg_service_scheduled_sleep_autoscalling_max_task | default(0) }}
+    #       --region {{ global_var_ecs_region }}
+    #   when:
+    #     - global_awx_ad_hoc_shell_switch is defined
+    #     - global_awx_ad_hoc_shell_switch
+    #     - kb_integration_origginecg_service_scheduled_autoscalling | default(false)
+    #   environment:
+    #     AWS_ACCESS_KEY_ID: "{{ vault_aws_access_key }}"
+    #     AWS_SECRET_ACCESS_KEY: "{{ vault_aws_access_secret }}" 
+
+    # - name: Kowri Business Origgin ECG|| Creating a Wake Time scheduled application autoscalling for Billbox LNS
+    #   shell: > 
+    #       aws application-autoscaling put-scheduled-action --service-namespace ecs
+    #       --scalable-dimension ecs:service:DesiredCount
+    #       --resource-id service/{{ global_var_ecs_clustername }}/{{ kb_integration_origginecg_service_name }}
+    #       --scheduled-action-name scheduled-gh-office-{{ kb_integration_origginecg_service_name }}-wake-time
+    #       --schedule "cron({{ kb_integration_origginecg_service_wake_cron | default('00 08 ? * MON-FRI *') }})"
+    #       --scalable-target-action MinCapacity={{ kb_integration_origginecg_service_scheduled_wake_autoscalling_min_task | default(1) }},MaxCapacity={{ kb_integration_origginecg_service_scheduled_wake_autoscalling_max_task | default(1) }}
+    #       --region {{ global_var_ecs_region }}
+    #       --profile {{ lookup('env','AWS_PROFILE') }}
+    #   when:
+    #     - global_awx_ad_hoc_shell_switch is defined
+    #     - not global_awx_ad_hoc_shell_switch
+    #     - kb_integration_origginecg_service_scheduled_autoscalling | default(false)    
+
+    # - name: Kowri Business Origgin ECGServer || Creating a Wake Time scheduled application autoscalling for Kowri Business Origgin ECGwith awscli
+    #   shell: > 
+    #       aws application-autoscaling put-scheduled-action --service-namespace ecs
+    #       --scalable-dimension ecs:service:DesiredCount
+    #       --resource-id service/{{ global_var_ecs_clustername }}/{{ kb_integration_origginecg_service_name }}
+    #       --scheduled-action-name scheduled-gh-office-{{ kb_integration_origginecg_service_name }}-wake-time
+    #       --schedule "cron({{ kb_integration_origginecg_service_wake_cron | default('00 08 ? * MON-FRI *') }})"
+    #       --scalable-target-action MinCapacity={{ kb_integration_origginecg_service_scheduled_wake_autoscalling_min_task | default(1) }},MaxCapacity={{ kb_integration_origginecg_service_scheduled_wake_autoscalling_max_task | default(1) }}
+    #       --region {{ global_var_ecs_region }}
+    #   when:
+    #     - global_awx_ad_hoc_shell_switch is defined
+    #     - global_awx_ad_hoc_shell_switch
+    #     - kb_integration_origginecg_service_scheduled_autoscalling | default(false)
+    #   environment:
+    #     AWS_ACCESS_KEY_ID: "{{ vault_aws_access_key }}"
+    #     AWS_SECRET_ACCESS_KEY: "{{ vault_aws_access_secret }}" 

@@ -1,0 +1,97 @@
+util_filesystem_enable: true
+util_filesystem_install_packages_direct_list: 
+- unzip
+- htop
+- python-pip
+- python3-pip
+mongofamily_server_common_config_create_directory_with_pem_details: 
+ - {
+   path: "{{ global_var_mongo_arb_folder }}",
+   owner: "mongod",
+   group: "mongod"
+ }
+aws_install_python_pip_enable: false
+aws_pip_install_boto_enable: true
+aws_install_awscli_enable: true
+aws_s3_enable: true
+aws_s3_pull_object_details:
+  mongokeyfile:
+    bucket: "{{ global_var_mongo_s3_bucket }}"
+    objpath: "{{ global_var_mongo_secretkey_path }}/{{ global_var_environment }}/{{ global_var_mongo_replica_keyfile }}"
+    dest_path: "/tmp/{{ global_var_mongo_replica_keyfile }}"
+mongofamily_percona_mongo_enable: true
+mongofamly_percona_release_version: "percona-release_latest"
+mongofamly_percona_release_enable_key: "{{ global_var_mongo_release_enable_key }}"
+mongofamly_percona_release_update: true
+mongofamily_server_release_name: "{{ ansible_distribution_release }}"
+mongofamily_percona_install_components_list:
+- "percona-server-mongodb"
+mongofamily_server_common_random_command_details:
+- "sudo systemctl enable mongod"
+- "sudo service mongod restart"
+
+mongofamily_server_common_random_command_details_final:
+- "sudo service mongod restart"
+mongofamily_server_security_enabled: true
+mongofamily_security_util_enabled: true
+mongofamily_security_util_filesystem_create_directory_with_pem_details:
+- {
+  path: "{{ global_var_mongo_key_folder }}",
+  owner: "mongod",
+  group: "mongod"
+}
+mongofamily_security_util_filesystem_copy_files_details:
+- {
+  source: "/tmp/{{ global_var_mongo_replica_keyfile }}",
+  destination: "{{ global_var_mongo_key_folder }}/{{ global_var_mongo_replica_keyfile }}",
+  owner: "mongod",
+  group: "mongod",
+  mode: "0400",
+  remote_src: "yes"
+}  
+mongofamily_security_replace_conf_details:
+- {
+  dest_fullpath: "/etc/mongod.conf",
+  authorization: "enabled",
+  keyfile: "{{ global_var_mongo_key_folder }}/{{ global_var_mongo_replica_keyfile }}"
+}
+mongofamily_security_server_state_details:
+- "restarted"
+mongofamily_security_wait_for: true
+mongofamily_security_deploy_wait_details:
+- {
+  host: "localhost",
+  port: "{{global_var_mongo_port}}",
+  delay: 10,
+  state: "present"
+}
+mongofamily_server_replicatset_enabled: true
+mongofamily_server_replica_replace_conf_details:
+- {
+  dest_fullpath: "/etc/mongod.conf",
+  replSetName: "{{ global_var_replicatset_name }}"
+}
+mongofamily_server_replica_server_state_details:
+- "restarted"
+mongofamily_server_replica_wait_for: true
+mongofamily_server_replica_deploy_wait_details:
+- {
+  host: "localhost",
+  port: "{{ global_var_mongo_port }}",
+  delay: 10,
+  state: "present"
+}
+mongofamily_server_common_config_details:
+- {  
+    replacewith: "127.0.0.1, {{ ansible_default_ipv4.address }}",
+    regex: "(?<=bindIp\\:\\s).+",
+    afterline: "^\\s+port",
+    file: "{{ global_var_mongo_config_file}}"
+  }
+- {  
+    replacewith: "{{ global_var_mongo_arb_folder }}",
+    regex: "(?<=dbPath\\:\\s).+",
+    afterline: "^\\s+storage",
+    file: "{{ global_var_mongo_config_file}}"
+  }
+networking_box_hostname:  "{{ hostvars[inventory_hostname]['ec2_tag_AName']  }}"

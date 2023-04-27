@@ -1,0 +1,8 @@
+[
+    {
+        "Field": "host-header",
+        "HostHeaderConfig": {
+            "Values": {{ global_var_services_details.kowriexpcoreserver.domains | list | to_json }}
+        }
+    }
+]

@@ -1,0 +1,94 @@
+---
+local_vars_proxy_nginx_forward_gh_mpay_bundlesfiber_vhost_file: "forward_gh_mpay_bundlesfiber.conf"
+local_vars_proxy_nginx_forward_gh_mpay_bundlesfiber_log_access_file: "/var/log/nginx/forward_gh_mpay_bundlesfiber_nginx_proxy_access.log"
+local_vars_proxy_nginx_forward_gh_mpay_bundlesfiber_log_error_file: "/var/log/nginx/forward_gh_mpay_bundlesfiber_nginx_proxy_error.log"
+local_vars_proxy_nginx_forward_gh_mpay_bundlesfiber_upstream_1_host: "resadmin.mpaylimited.com"
+local_vars_proxy_nginx_forward_gh_mpay_bundlesfiber_upstream_1_path: "/distributormobilerest/distributormobilerest"
+local_vars_proxy_nginx_forward_gh_mpay_bundlesfiber_upstream_1_endpoint: "{{ local_vars_proxy_nginx_forward_gh_mpay_bundlesfiber_upstream_2_host }}/{{ local_vars_proxy_nginx_forward_gh_mpay_bundlesfiber_upstream_1_path }}"
+local_vars_proxy_nginx_forward_gh_mpay_bundlesfiber_upstream_2_host: "tswitch.mpaylimited.com"
+local_vars_proxy_nginx_forward_gh_mpay_bundlesfiber_upstream_2_path: "/productrest/productrest"
+local_vars_proxy_nginx_forward_gh_mpay_bundlesfiber_upstream_2_endpoint: "{{ local_vars_proxy_nginx_forward_gh_mpay_bundlesfiber_upstream_2_host }}/{{ local_vars_proxy_nginx_forward_gh_mpay_bundlesfiber_upstream_2_path }}"
+local_vars_proxy_nginx_forward_gh_mpay_bundlesfiber_upstream_1_host_mon_type: tcp
+local_vars_proxy_nginx_forward_gh_mpay_bundlesfiber_upstream_1_host_mon_scheme: https
+local_vars_proxy_nginx_forward_gh_mpay_bundlesfiber_upstream_2_host_mon_type: tcp
+local_vars_proxy_nginx_forward_gh_mpay_bundlesfiber_upstream_2_host_mon_scheme: https
+webserverfamily_nginx_enable: true
+webserverfamily_nginx_push_configfiles_details:
+  forward_gh_mpay_bundlesfiber:
+    src: "nginx/_generic_vhost.conf.j2"
+    dest: "/etc/nginx/sites-available/{{ local_vars_proxy_nginx_forward_gh_mpay_bundlesfiber_vhost_file }}"
+    owner: "root"
+    group: "root"
+    port: "{{ global_gh_mpay_bundlesfiber_nginx_port }}"
+    ssl_enabled: false
+    domain_names:
+      - "localhost"
+    logging_enabled: true
+    access_log_file: "{{ local_vars_proxy_nginx_forward_gh_mpay_bundlesfiber_log_access_file }}"
+    access_format: "jsonlog"
+    error_log_file: "{{ local_vars_proxy_nginx_forward_gh_mpay_bundlesfiber_log_error_file }}"
+    locations:
+      - context: "/test"
+        instructions:
+          - "access_log off"
+          - "return 200"
+      - context: "/session"
+        instructions:
+          - "proxy_set_header X-Forwarded-For $server_addr"
+          - "proxy_pass {{ local_vars_proxy_nginx_forward_gh_mpay_bundlesfiber_upstream_1_host_mon_scheme }}://{{ local_vars_proxy_nginx_forward_gh_mpay_bundlesfiber_upstream_1_host }}/"
+      - context: "/bundles"
+        instructions:
+          - "proxy_set_header X-Forwarded-For $server_addr"
+          - "proxy_pass {{ local_vars_proxy_nginx_forward_gh_mpay_bundlesfiber_upstream_2_host_mon_scheme }}://{{ local_vars_proxy_nginx_forward_gh_mpay_bundlesfiber_upstream_2_host }}/"
+      - context: "/fiber"
+        instructions:
+          - "proxy_set_header X-Forwarded-For $server_addr"
+          - "proxy_pass {{ local_vars_proxy_nginx_forward_gh_mpay_bundlesfiber_upstream_2_host_mon_scheme }}://{{ local_vars_proxy_nginx_forward_gh_mpay_bundlesfiber_upstream_2_host }}/"
+
+webserverfamily_nginx_common_enable_sites_details_hash:
+  forward_gh_mpay_bundlesfiber:
+    vhost: "{{ local_vars_proxy_nginx_forward_gh_mpay_bundlesfiber_vhost_file }}"
+webserverfamily_nginx_common_validation_enable: true
+webserverfamily_nginx_common_restart_enabled: true
+elasticbeats_configuration_details:
+  forward_gh_mpay_bundlesfiber:
+      src: "monitor.yml.j2"
+      dest: "/etc/heartbeat/monitors.d/forward_gh_mpay_bundlesfiber.yml"
+      type: "{{ local_vars_proxy_nginx_forward_gh_mpay_bundlesfiber_upstream_1_host_mon_type }}"
+      name: "forward_gh_mpay_bundlesfiber"
+      enabled: true
+      schedule: "@every 1h"
+      hosts: 
+        - "{{local_vars_proxy_nginx_forward_gh_mpay_bundlesfiber_upstream_1_host}}:443"
+        - "{{local_vars_proxy_nginx_forward_gh_mpay_bundlesfiber_upstream_2_host}}:443"
+elasticbeats_systemd_details: 
+  restart:
+      name: "heartbeat-elastic"
+      state: "restarted"
+elk_instance_name: "{{ hostvars[inventory_hostname]['tags']['AName'] }}"
+
+monitoringfamily_enable_r7insightops: true
+monitoringfamily_r7insightops_config_path: "/opt/rapid7/ir_agent/components/insight_agent/common/config"
+monitoringfamily_r7insightops_forward_gh_mpay_bundlesfiber_accesslog_name: "NginxProxy_Forward_GH_MPAY_BundlesFiber_Access_log"
+monitoringfamily_r7insightops_forward_gh_mpay_bundlesfiber_errorlog_name: "NginxProxy_Forward_GH_MPAY_BundlesFiber_Error_log"
+# monitoringfamily_r7insightops_agent_block_templating_details:
+#   dest: "{{ monitoringfamily_r7insightops_config_path }}/logging.json"
+#   path: "/config/logs"
+#   type: "inject"
+#   blocks:
+#     - {
+#         destination: "{{ global_var_insightops_log_set }}/{{ monitoringfamily_r7insightops_forward_gh_mpay_bundlesfiber_accesslog_name }}",
+#         enabled: "true",
+#         name: "{{ monitoringfamily_r7insightops_forward_gh_mpay_bundlesfiber_accesslog_name }}",
+#         path: "{{ local_vars_proxy_nginx_forward_gh_mpay_bundlesfiber_log_access_file }}"
+#     }
+#     - {
+#         destination: "{{ global_var_insightops_log_set }}/{{ monitoringfamily_r7insightops_forward_gh_mpay_bundlesfiber_errorlog_name }}",
+#         enabled: "true",
+#         name: "{{ monitoringfamily_r7insightops_forward_gh_mpay_bundlesfiber_errorlog_name }}",
+#         path: "{{ local_vars_proxy_nginx_forward_gh_mpay_bundlesfiber_log_error_file }}"
+#     }
+# monitoringfamily_r7insightops_agent_overwrite_config_details:
+#   dest: "{{ monitoringfamily_r7insightops_config_path }}/logging.json"
+#   src: "rapid7_insightops/empty_config.j2"    
+# monitoringfamily_r7insightops_agent_restart_enabled: true

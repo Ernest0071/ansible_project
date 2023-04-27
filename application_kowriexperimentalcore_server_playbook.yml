@@ -1,0 +1,297 @@
+- import_playbook: fact_gatherer_playbook.yml
+  tags:
+    - facts
+
+- import_playbook: aws_service_discovery_route53_playbook.yml
+  tags:
+    - facts
+
+- hosts: localhost
+  connection: local
+  gather_facts: yes
+  vars_files:
+    - playbook_vars/{{ global_var_environment }}/global_vars.yml
+    - playbook_vars/{{ global_var_environment }}/application_kowriexperimentalcore_vars.yml
+    - playbook_vars/{{ global_var_environment }}/vault/{{ global_var_environment }}_variables.vault
+  tasks:
+    - name: Extracting ARN from service discovery
+      set_fact:
+        reg_kowriexperimentalcore_sd_dns_details: "{{ ServiceListJson | json_query(\"Services[?Name=='\" + global_var_services_details.kowriexpcoreserver.name+\"']\") }}"
+
+    - name: Setup || Creating ECS Cluster
+      ecs_cluster:
+        name: "{{ global_var_ecs_clustername }}"
+        state: present
+        region: "{{ global_var_ecs_region }}"
+      when: global_var_ecs_clustername is defined
+
+    - name: Kowri Experimental Core ||  Creating Parameter Store secrets
+      aws_ssm_parameter_store:
+        name: "{{ item.value.id }}"
+        decryption: true
+        region: "{{ global_var_ird_region }}"
+        string_type: "SecureString"
+        value: "{{ item.value.content }}"
+        state: "{{ item.value.state | default('present')}}"
+        overwrite_value: always # not required. choices: never;changed;always. Option to overwrite an existing value if it already exists.,String
+        description: "kowri experimental core core param store"
+      with_dict: "{{ kowri_experimental_core_server_task_container_secretenv_definition }}"
+      no_log: true
+      diff: false
+
+    # - debug: var=kowri_experimental_core_server_task_executionRoleArn
+    - name: Kowri Experimental Core || Creating kowriexperimentalcore Server task definition
+      ecs_taskdefinition:
+        state: present
+        family: "{{ kowri_experimental_core_server_task_family_name }}"
+        region: "{{ global_var_ird_region }}"
+        execution_role_arn: "{{ kowri_experimental_core_server_task_executionRoleArn }}"
+        task_role_arn: "{{ kowri_experimental_core_server_task_executionRoleArn }}"
+        network_mode: "{{ kowri_experimental_core_server_task_networkmode }}"
+        launch_type: "{{ kowri_experimental_core_server_task_ecsmode }}"
+        cpu: "{{ kowri_experimental_core_server_task_cpu }}"
+        memory: "{{ kowri_experimental_core_server_task_memory }}"
+        force_create: yes
+        containers:
+        - name: "{{ global_var_services_details.kowriexpcoreserver.name }}"
+          image: "{{ kowri_experimental_core_server_task_container_image }}"
+          cpu: "{{ kowri_experimental_core_server_task_container_cpu }}"
+          memory: "{{ kowri_experimental_core_server_task_container_memory }}"
+          repositoryCredentials:
+            credentialsParameter: "{{ kowri_experimental_core_server_task_container_credentials_parameter }}"
+          portMappings:
+          - containerPort: "{{ global_var_services_details.kowriexpcoreserver.containerPort }}"
+            hostPort: "{{ global_var_services_details.kowriexpcoreserver.hostPort }}"
+          - containerPort: "{{ kowri_experimental_core_main_port }}"
+            hostPort: "{{ kowri_experimental_core_main_port }}"
+          - containerPort: "{{ kowri_experimental_core_int_port }}"
+            hostPort: "{{ kowri_experimental_core_int_port }}"
+          essential: "{{ kowri_experimental_core_server_task_container_essential }}"
+          environment: "{{ kowri_experimental_core_server_task_container_env }}"
+          secrets: "{{ kowri_experimental_core_server_task_container_secretenv }}"
+          logConfiguration:
+            logDriver: "{{ kowri_experimental_core_server_task_container_log_driver }}"
+            options:
+              awslogs-group: "{{ kowri_experimental_core_server_task_container_log_logsgroup }}"
+              awslogs-region: "{{ kowri_experimental_core_server_task_container_log_logsregion }}"
+              awslogs-stream-prefix: "{{ kowri_experimental_core_server_task_container_log_logsprefix }}"
+
+        - name: "{{ kowri_experimental_core_proxyserver_name }}"
+          image: "{{global_var_services_details.proxynginxserver.image }}"
+          repositoryCredentials:
+            credentialsParameter: "{{ kowri_experimental_core_server_task_container_credentials_parameter }}"
+          portMappings:
+          - containerPort: "{{ kowri_experimental_core_proxyserver_listen_port }}"
+            hostPort: "{{kowri_experimental_core_proxyserver_listen_port }}"
+          essential: "{{ kowri_experimental_core_sidecar_server_task_container_essential }}"
+          environment: "{{ kowri_experimental_corenginx_server_task_container_env }}"
+          logConfiguration:
+            logDriver: "{{ kowri_experimental_core_server_task_container_log_driver }}"
+            options:
+              awslogs-group: "{{ kowri_experimental_core_server_task_container_log_logsgroup }}"
+              awslogs-region: "{{ kowri_experimental_core_server_task_container_log_logsregion }}"
+              awslogs-stream-prefix: "{{ kowri_experimental_core_server_task_container_log_logsprefix }}"
+
+        - name: "{{ global_var_services_details.monitoringserver.name }}"
+          image: "{{ global_var_services_details.monitoringserver.image }}"
+          essential: false
+          secrets: "{{ kowri_experimental_core_server_task_container_mon_secretenv }}"
+          environment: "{{ kowri_experimental_core_server_task_container_mon_env }}"
+      register: reg_kowriexperimentalcore_servertaskdef
+
+
+    - name: Kowri Experimental Core || Obtaining target group facts
+      elb_target_group_info:
+        names: "{{ kowri_experimental_core_targetgroup_name }}"
+        region: "{{ global_var_ecs_region }}"
+      register: reg_kowri_experimental_core_target_group_facts
+
+
+    - name: Kowri Experimental Core || Creating kowriexperimentalcore target group public
+      elb_target_group:
+        name: "{{ kowri_experimental_core_targetgroup_name }}"
+        state: present
+        protocol: "{{ kowri_experimental_core_targetgroup_protocol }}"
+        successful_response_codes: "{{ kowri_experimental_core_targetgroup_success_http_code }}"
+        wait_timeout: 200
+        health_check_interval: "{{ kowri_experimental_core_targetgroup_hc_interval }}"
+        modify_targets: true
+        healthy_threshold_count: "{{ kowri_experimental_core_targetgroup_hc_healthycount }}"
+        health_check_path: "{{ kowri_experimental_core_targetgroup_hc_path }}"
+        health_check_protocol: "{{ kowri_experimental_core_targetgroup_hc_protocol }}"
+        unhealthy_threshold_count: "{{ kowri_experimental_core_targetgroup_hc_unhealthycount }}"
+        region: "{{ global_var_ecs_region }}"
+        target_type: "{{ kowri_experimental_core_targetgroup_targettype }}"
+        port: 80
+        vpc_id: "{{ hostvars.localhost.reg_vpc_facts.vpcs.0.id }}"
+        # wait: false
+        health_check_timeout: "{{ kowri_experimental_core_targetgroup_hc_timeout }}"
+      register: reg_kowriexperimentalcore_targetgroup
+      when:
+      - reg_kowri_experimental_core_target_group_facts.target_groups | length == 0
+
+    - name: Kowri Experimental Core || Obtaining  second target group facts
+      elb_target_group_info:
+        names: "{{ kowri_experimental_core_targetgroup_name }}"
+        region: "{{ global_var_ecs_region }}"
+      register: reg_kowri_experimental_core_target_group_facts
+
+    - name: creating the alb rule condition files
+      template:
+        dest: "files/{{ global_var_environment }}_kowriexperimentalcore_alb_conditions.json"
+        src:  "templates/kowriexperimentalcore_alb_conditions.json"
+
+    - debug: var=reg_kowri_experimental_core_target_group_facts
+
+    - name: Kowri Experimental Core || Associating public target group to a ALB listener for kowriexperimentalcore
+      shell: > 
+          aws elbv2 create-rule --listener-arn {{ hostvars.localhost.reg_alb_facts.load_balancers.0.listeners.0.listener_arn }}
+          --priority {{ global_var_services_details.kowriexpcoreserver.albPriority }}
+          --conditions file://files/{{ global_var_environment }}_kowriexperimentalcore_alb_conditions.json
+          --actions Type=forward,TargetGroupArn={{ reg_kowri_experimental_core_target_group_facts.target_groups.0.target_group_arn }}
+          --region {{ global_var_ecs_region }}
+          --profile {{ lookup('env','AWS_PROFILE') }}
+      when:
+        - global_awx_ad_hoc_shell_switch is defined
+        - not global_awx_ad_hoc_shell_switch
+
+    - name: Kowri Experimental Core || Associating public target group to a ALB listener for kowriexperimentalcore
+      shell: > 
+          aws elbv2 create-rule --listener-arn {{ hostvars.localhost.reg_alb_facts.load_balancers.0.listeners.0.listener_arn }}
+          --priority {{ global_var_services_details.kowriexpcoreserver.albPriority }}
+          --conditions file://files/{{ global_var_environment }}_kowriexperimentalcore_alb_conditions.json
+          --actions Type=forward,TargetGroupArn={{ reg_kowri_experimental_core_target_group_facts.target_groups.0.target_group_arn }}
+          --region {{ global_var_ecs_region }}
+      when:
+        - global_awx_ad_hoc_shell_switch is defined
+        - global_awx_ad_hoc_shell_switch
+      environment:
+        AWS_ACCESS_KEY_ID: "{{ vault_aws_access_key }}"
+        AWS_SECRET_ACCESS_KEY: "{{ vault_aws_access_secret }}"
+
+
+    - name: Kowri Experimental Core || Creating or Updating the ECS service kowriexperimentalcoreserver
+      ecs_service:
+        state: present
+        name: "{{ kowri_experimental_core_service_name }}"
+        service_registries:
+          - registryArn: "{{ hostvars.localhost.reg_kowriexperimentalcore_sd_dns_details.0.Arn }}"
+        network_configuration:
+            assign_public_ip: no
+            security_groups: "{{ hostvars.localhost.reg_app_secgroup_ids_facts | list }}"
+            subnets: "{{ hostvars.localhost.reg_private_app_subnet_ids_facts | list }}"
+        desired_count: "{{ kowri_experimental_core_service_count }}"
+        cluster: "{{ global_var_ecs_clustername }}"
+        task_definition: "{{ kowri_experimental_core_server_task_family_name }}:{{ reg_kowriexperimentalcore_servertaskdef.taskdefinition.revision }}"
+        region: "{{ global_var_ecs_region }}"
+        load_balancers:
+          - targetGroupArn: "{{ reg_kowri_experimental_core_target_group_facts.target_groups.0.target_group_arn }}"
+            containerName: "{{ kowri_experimental_core_proxyserver_name }}"
+            containerPort: "{{ kowri_experimental_core_proxyserver_listen_port }}"
+        launch_type: "{{ kowri_experimental_core_server_task_ecsmode }}"
+        health_check_grace_period_seconds: "{{ kowri_experimental_core_service_hc_graceperiod }}"
+
+    - name: Kowri Experimental Core || Creating kowriexperimentalcore MEM Scalling Policy for {{ global_var_environment }}
+      aws_application_scaling_policy:
+        state: present
+        policy_name: "{{ kowri_experimental_core_service_mem_autoscalling_policy_name }}"
+        service_namespace: ecs
+        region: "{{ global_var_ecs_region }}"
+        resource_id: service/{{ global_var_ecs_clustername }}/{{ kowri_experimental_core_service_name }}
+        scalable_dimension: ecs:service:DesiredCount
+        policy_type: "{{ kowri_experimental_core_service_autoscalling_policy_type }}"
+        minimum_tasks: "{{ kowri_experimental_core_service_autoscalling_min_task }}"
+        maximum_tasks: "{{ kowri_experimental_core_service_autoscalling_max_task }}"
+        target_tracking_scaling_policy_configuration:
+          TargetValue: "{{ kowri_experimental_core_service_mem_autoscalling_tracking_scaling_target_value }}"
+          PredefinedMetricSpecification:
+            PredefinedMetricType: "{{ kowri_experimental_core_service_mem_autoscalling_tracking_scaling_metric_spec }}"
+          ScaleOutCooldown: "{{ kowri_experimental_core_service_mem_autoscalling_tracking_scalout_cooldown }}"
+          ScaleInCooldown: "{{ kowri_experimental_core_service_mem_autoscalling_tracking_scalin_cooldown }}"
+
+    - name: Kowri Experimental Core || Creating kowriexperimentalcore CPU Scalling Policy for {{ global_var_environment }}
+      aws_application_scaling_policy:
+        state: present
+        policy_name: "{{ kowri_experimental_core_service_cpu_autoscalling_policy_name }}"
+        service_namespace: ecs
+        region: "{{ global_var_ecs_region }}"
+        resource_id: service/{{ global_var_ecs_clustername }}/{{ kowri_experimental_core_service_name }}
+        scalable_dimension: ecs:service:DesiredCount
+        policy_type: "{{ kowri_experimental_core_service_autoscalling_policy_type }}"
+        minimum_tasks: "{{ kowri_experimental_core_service_autoscalling_min_task }}"
+        maximum_tasks: "{{ kowri_experimental_core_service_autoscalling_max_task }}"
+        target_tracking_scaling_policy_configuration:
+          TargetValue: "{{ kowri_experimental_core_service_cpu_autoscalling_tracking_scaling_target_value }}"
+          PredefinedMetricSpecification:
+            PredefinedMetricType: "{{ kowri_experimental_core_service_cpu_autoscalling_tracking_scaling_metric_spec }}"
+          ScaleOutCooldown: "{{ kowri_experimental_core_service_cpu_autoscalling_tracking_scalout_cooldown }}"
+          ScaleInCooldown: "{{ kowri_experimental_core_service_cpu_autoscalling_tracking_scalin_cooldown }}"
+
+
+    # - name: Kowri Experimental Core || Creating a Sleep Time scheduled application autoscalling for kowriexperimentalcore
+    #   shell: > 
+    #       aws application-autoscaling put-scheduled-action --service-namespace ecs
+    #       --scalable-dimension ecs:service:DesiredCount
+    #       --resource-id service/{{ global_var_ecs_clustername }}/{{ kowri_experimental_core_service_name }}
+    #       --scheduled-action-name scheduled-gh-office-{{ kowri_experimental_core_service_name }}-off-time
+    #       --schedule "cron({{ kowri_experimental_core_service_sleep_cron | default('00 20 ? * MON-FRI *') }})"
+    #       --scalable-target-action MinCapacity={{ kowri_experimental_core_service_scheduled_sleep_autoscalling_min_task | default(0) }},MaxCapacity={{ kowri_experimental_core_service_scheduled_sleep_autoscalling_max_task | default(0) }}
+    #       --region {{ global_var_ecs_region }}
+    #       --profile {{ lookup('env','AWS_PROFILE') }}
+    #   when:
+    #     - global_awx_ad_hoc_shell_switch is defined
+    #     - not global_awx_ad_hoc_shell_switch
+    #     - kowri_experimental_core_service_scheduled_autoscalling | default(false)
+    #     - global_auto_turnoff
+
+    # - name: Kowri Experimental Core || Creating a Sleep Time scheduled application autoscalling for kowriexperimentalcore
+    #   shell: > 
+    #       aws application-autoscaling put-scheduled-action --service-namespace ecs
+    #       --scalable-dimension ecs:service:DesiredCount
+    #       --resource-id service/{{ global_var_ecs_clustername }}/{{ kowri_experimental_core_service_name }}
+    #       --scheduled-action-name scheduled-gh-office-{{ kowri_experimental_core_service_name }}-off-time
+    #       --schedule "cron({{ kowri_experimental_core_service_sleep_cron | default('00 20 ? * MON-FRI *') }})"
+    #       --scalable-target-action MinCapacity={{ kowri_experimental_core_service_scheduled_sleep_autoscalling_min_task | default(0) }},MaxCapacity={{ kowri_experimental_core_service_scheduled_sleep_autoscalling_max_task | default(0) }}
+    #       --region {{ global_var_ecs_region }}
+    #   when:
+    #     - global_awx_ad_hoc_shell_switch is defined
+    #     - global_awx_ad_hoc_shell_switch
+    #     - kowri_experimental_core_service_scheduled_autoscalling | default(false)
+    #     - global_auto_turnoff
+    #   environment:
+    #     AWS_ACCESS_KEY_ID: "{{ vault_aws_access_key }}"
+    #     AWS_SECRET_ACCESS_KEY: "{{ vault_aws_access_secret }}"
+
+    # - name: Kowri Experimental Core || Creating a Wake Time scheduled application autoscalling for kowriexperimentalcore
+    #   shell: > 
+    #       aws application-autoscaling put-scheduled-action --service-namespace ecs
+    #       --scalable-dimension ecs:service:DesiredCount
+    #       --resource-id service/{{ global_var_ecs_clustername }}/{{ kowri_experimental_core_service_name }}
+    #       --scheduled-action-name scheduled-gh-office-{{ kowri_experimental_core_service_name }}-wake-time
+    #       --schedule "cron({{ kowri_experimental_core_service_wake_cron | default('00 08 ? * MON-FRI *') }})"
+    #       --scalable-target-action MinCapacity={{ kowri_experimental_core_service_scheduled_wake_autoscalling_min_task | default(1) }},MaxCapacity={{ kowri_experimental_core_service_scheduled_wake_autoscalling_max_task | default(1) }}
+    #       --region {{ global_var_ecs_region }}
+    #       --profile {{ lookup('env','AWS_PROFILE') }}
+    #   when:
+    #     - global_awx_ad_hoc_shell_switch is defined
+    #     - not global_awx_ad_hoc_shell_switch
+    #     - kowri_experimental_core_service_scheduled_autoscalling | default(false)
+    #     - global_auto_turnoff
+
+    # - name: Kowri Experimental Core || Creating a Wake Time scheduled application autoscalling for kowriexperimentalcore
+    #   shell: > 
+    #       aws application-autoscaling put-scheduled-action --service-namespace ecs
+    #       --scalable-dimension ecs:service:DesiredCount
+    #       --resource-id service/{{ global_var_ecs_clustername }}/{{ kowri_experimental_core_service_name }}
+    #       --scheduled-action-name scheduled-gh-office-{{ kowri_experimental_core_service_name }}-wake-time
+    #       --schedule "cron({{ kowri_experimental_core_service_wake_cron | default('00 08 ? * MON-FRI *') }})"
+    #       --scalable-target-action MinCapacity={{ kowri_experimental_core_service_scheduled_wake_autoscalling_min_task | default(1) }},MaxCapacity={{ kowri_experimental_core_service_scheduled_wake_autoscalling_max_task | default(1) }}
+    #       --region {{ global_var_ecs_region }}
+    #   when:
+    #     - global_awx_ad_hoc_shell_switch is defined
+    #     - global_awx_ad_hoc_shell_switch
+    #     - kowri_experimental_core_service_scheduled_autoscalling | default(false)
+    #     - global_auto_turnoff
+    #   environment:
+    #     AWS_ACCESS_KEY_ID: "{{ vault_aws_access_key }}"
+    #     AWS_SECRET_ACCESS_KEY: "{{ vault_aws_access_secret }}"

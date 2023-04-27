@@ -1,0 +1,80 @@
+---
+proxy_ghtotal_vhost_file: "forward_ghtotal.conf"
+ghtotal_upstream_host1: "mswebservices.infratotal.net:11443"
+ghtotal_upstream_host1_mon_type: tcp
+ghtotal_upstream_host1_mon_scheme: https
+total_client_ssl_folder_path: "/srv/ssl/totalclient"
+util_filesystem_create_directory_with_pem_details_dict:
+  ghtotalssl:
+    path: "{{ total_client_ssl_folder_path }}"
+webserverfamily_nginx_ppa_version_enable: true
+webserverfamily_nginx_enable: true
+aws_install_python_pip_enable: true
+aws_pip_install_boto_enable: true
+aws_install_awscli_enable: true
+aws_s3_enable: true
+total_client_ssl_cert: "Totalghana.2021.crt"
+total_client_ssl_key: "Totalghana.2021.key"
+aws_s3_pull_object_details:
+  totalcert:
+    bucket: "{{ global_var_mongo_s3_bucket }}"
+    objpath: "{{ global_var_billbox_ssl_bucket_key }}/total/{{ total_client_ssl_cert }}"
+    dest_path: "{{ total_client_ssl_folder_path }}/{{ total_client_ssl_cert }}"
+  totalkey:
+    bucket: "{{ global_var_mongo_s3_bucket }}"
+    objpath: "{{ global_var_billbox_ssl_bucket_key }}/total/{{ total_client_ssl_key }}"
+    dest_path: "{{ total_client_ssl_folder_path }}/{{ total_client_ssl_key }}"
+webserverfamily_nginx_install_details:
+  - nginx
+  - nginx-extras
+webserverfamily_nginx_push_configfiles_details:
+  forward_ghtotal:
+    src: "nginx/_generic_vhost.conf.j2"
+    dest: "/etc/nginx/sites-available/{{ proxy_ghtotal_vhost_file }}"
+    owner: "root"
+    group: "root"
+    port: "{{ global_ghtotal_nginx_port }}"
+    ssl_enabled: false
+    domain_names:
+      - "localhost"
+    logging_enabled: true
+    access_log_file: "/var/log/nginx/forward_ghtotal_nginx_proxy_access.log"
+    access_format: "jsonlog"
+    error_log_file: "/var/log/nginx/forward_ghtotal_nginx_proxy_error.log"
+    bodyinstructions:
+      - >
+        proxy_ssl_certificate
+        {{ total_client_ssl_folder_path }}/{{ total_client_ssl_cert }}
+      - >
+        proxy_ssl_certificate_key
+        {{ total_client_ssl_folder_path }}/{{ total_client_ssl_key }}
+    locations:
+      - context: "/test"
+        instructions:
+          - "access_log off"
+          - "return 200"
+      - context: "/"
+        instructions:
+          - "proxy_set_header X-Forwarded-For $server_addr"
+          - "proxy_pass {{ ghtotal_upstream_host1_mon_scheme }}://{{ ghtotal_upstream_host1 }}/"
+webserverfamily_nginx_deletefiles_details:
+  - "/etc/nginx/sites-enabled/default"
+webserverfamily_nginx_common_enable_sites_details_hash:
+  ghtotal:
+    vhost: "{{ proxy_ghtotal_vhost_file }}"
+webserverfamily_nginx_common_validation_enable: true
+webserverfamily_nginx_common_restart_enabled: true
+elasticbeats_configuration_details:
+  ghtotal:
+      src: "monitor.yml.j2"
+      dest: "/etc/heartbeat/monitors.d/ghtotal.yml"
+      type: "{{ ghtotal_upstream_host1_mon_type }}"
+      name: "ghtotal"
+      enabled: true
+      schedule: "@every 30s"
+      hosts: ["{{ghtotal_upstream_host1}}"]
+elasticbeats_systemd_details: 
+  restart:
+      name: "heartbeat-elastic"
+      state: "restarted"
+elk_instance_name: "{{ hostvars[inventory_hostname]['ec2_placement'] }}"

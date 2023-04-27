@@ -1,0 +1,11 @@
+{
+    "InstanceType": "{{ local_kafka_instance_type }}",
+    "BrokerAZDistribution": "{{ local_kafka_az_distribution | default('DEFAULT') }}",
+    "ClientSubnets": {{ local_kafka_subnets_group | to_json }},
+    "SecurityGroups": {{ local_kafka_sec_group_list | to_json}},
+    "StorageInfo": {
+      "EbsStorageInfo": {
+        "VolumeSize": {{ local_kafka_volume_size }}
+      }
+    }
+  }

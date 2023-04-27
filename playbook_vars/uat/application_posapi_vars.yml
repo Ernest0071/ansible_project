@@ -1,0 +1,228 @@
+
+bb_posapi_main_port: "{{ global_var_services_details.posapiserver.containerPort }}"
+bb_posapi_tomcat_jmx_port: 13000
+bb_posapi_server_enabled: true
+bb_active_region: "{{ global_var_ird_region }}"
+bb_active_priv_dns_namespace: "{{ global_var_priv_dns_namespace }}"
+bb_posapi_server_task_family_name: "{{ global_var_country_code }}-{{ global_var_product }}-{{global_var_environment}}-{{ global_var_services_details.posapiserver.name }}"
+bb_posapi_server_task_networkmode: awsvpc
+bb_posapi_server_task_executionRoleArn: "{{ hostvars.localhost.reg_ecs_role_facts.iam_roles.0.arn }}"
+bb_posapi_server_task_ecsmode: FARGATE
+bb_posapi_server_task_cpu: 1024
+bb_posapi_server_task_memory: 2048
+bb_posapi_server_task_container_name: "{{ global_var_services_details.posapiserver.name }}"
+bb_posapi_server_task_container_image: "{{ global_var_services_details.posapiserver.image }}"
+bb_posapi_server_task_container_cpu: 1024
+bb_posapi_server_task_container_memory: 2048
+bb_posapi_server_task_container_credentials_parameter: "{{ hostvars.localhost.reg_dockerhub_secrets_facts.ARN }}"
+bb_posapi_server_task_container_portmap_containerport: 8080
+bb_posapi_server_task_container_portmap_hostport: 8080
+bb_posapi_server_task_container_essential: true
+bb_posapi_server_payment_flow_auth_required: PROMPT
+bb_posapi_sidecar_server_task_container_essential: true
+bb_posapi_image_path: "{{ global_var_cloudfront_base_url }}/static/images/"
+bb_posapi_server_task_container_java_vars:
+  - "-XX:MaxRAM={{ bb_posapi_server_task_container_memory * 2|pow(20) | int}}"
+  - "-XX:MinRAMPercentage=40.0"
+  - "-XX:MaxRAMPercentage=90.0"
+  - "-XX:+HeapDumpOnOutOfMemoryError"
+  - "-Dspring.application.name={{ global_var_services_details.posapiserver.application_name }}"
+  - "-DLOGENTRIES_TOKEN={{ global_var_services_details.posapiserver.logToken }}"
+  - "-Dlogging.level.root=INFO"
+  - "-Dserver.servlet.context-path=/"
+  - "-Ddd.agent.host=localhost"
+  - "-Ddd.agent.port=8126"
+  - "-Ddd.service={{ bb_posapi_service_name }}"
+  - "-Ddd.env={{ global_var_environment }}"
+  - "-Ddd.version={{ global_var_services_details.posapiserver.image.split(':')[1] }}"
+  # - "-javaagent:/opt/datadog/dd-java-agent.jar"
+bb_posapi_server_task_container_secretenv_definition:
+  mainport:
+    id: "{{ global_var_environment }}_BB_POSAPI_SERVER_PORT"
+    name: BB_POSAPI_SERVER_PORT
+    content: "{{ bb_posapi_main_port }}"
+  mongodbname:
+    id: "{{ global_var_environment }}_BB_POSAPI_MONGO_DBNAME"
+    name: BB_POSAPI_MONGO_DBNAME
+    content: "{{ vault_mongo_core_dbname }}"
+  mongodbrepllist:
+    id: "{{ global_var_environment }}_BB_POSAPI_MONGO_REPL_LIST"
+    name: BB_POSAPI_MONGO_REPL_LIST
+    content: "{{ hostvars.localhost.reg_mongo_cluster_uri }}"
+  mongodbusername:
+    id: "{{ global_var_environment }}_BB_POSAPI_MONGO_USERNAME"
+    name: BB_POSAPI_MONGO_USERNAME
+    content: "{{ vault_mongo_posapi_username }}"
+  mongodbpassword:
+    id: "{{ global_var_environment }}_BB_POSAPI_MONGO_PASSWORD"
+    name: BB_POSAPI_MONGO_PASSWORD
+    content: "{{ vault_mongo_posapi_password }}"
+  redishost:
+    id: "{{ global_var_environment }}_BB_POSAPI_REDIS_HOST"
+    name: BB_POSAPI_REDIS_HOST
+    content: "{{ hostvars.localhost.reg_elasticache_facts }}"
+  redisport:
+    id: "{{ global_var_environment }}_BB_POSAPI_REDIS_PORT"
+    name: BB_POSAPI_REDIS_PORT
+    content: "6379"
+  dd_api_key:
+    id: "{{ global_var_environment }}_DD_API_KEY"
+    name: DD_API_KEY
+    content: "{{ vault_datadog_api_key }}"
+  core_web_username:
+    id: "{{ global_var_environment }}_BB_POSAPI_BB_WEB_USERNAME"
+    name: BB_POSAPI_BB_WEB_USERNAME
+    content: "{{ vault_webposapi_username }}"
+  core_web_password:
+    id: "{{ global_var_environment }}_BB_POSAPI_BB_WEB_PASSWORD"
+    name: BB_POSAPI_BB_WEB_PASSWORD
+    content: "{{ vault_webposapi_password }}"
+  mon_api_key:
+    id: "{{ global_var_environment }}_DD_API_KEY"
+    name: DD_API_KEY
+    content: "{{ vault_datadog_api_key }}"
+  mon_kowri_accountid:
+    id: "{{ global_var_environment }}_BB_INTEGRATOR_KOWRI_ACCOUNTID"
+    name: BB_INTEGRATOR_KOWRI_ACCOUNTID
+    content: "{{ vault_integrator_account_id }}"
+  keycloak_client_secret:
+    id: "{{ global_var_environment }}_{{ global_var_product }}_KOWRI_BUSINESS_KEYCLOAK_CLIENT_SECRET"
+    name: KOWRI_BUSINESS_KEYCLOAK_CLIENT_SECRET
+    content: "{{ vault_keycloak_client_secret }}"
+
+bb_posapi_server_task_container_secretenv:
+  - valueFrom: "{{ global_var_environment }}_BB_POSAPI_SERVER_PORT"
+    name: BB_POSAPI_SERVER_PORT
+  - valueFrom: "{{ global_var_environment }}_BB_POSAPI_MONGO_DBNAME"
+    name: BB_POSAPI_MONGO_DBNAME
+  - valueFrom: "{{ global_var_environment }}_BB_POSAPI_MONGO_REPL_LIST"
+    name: BB_POSAPI_MONGO_REPL_LIST
+  - valueFrom: "{{ global_var_environment }}_BB_POSAPI_MONGO_USERNAME"
+    name: BB_POSAPI_MONGO_USERNAME
+  - valueFrom: "{{ global_var_environment }}_BB_POSAPI_MONGO_PASSWORD"
+    name: BB_POSAPI_MONGO_PASSWORD
+  - valueFrom: "{{ global_var_environment }}_BB_POSAPI_REDIS_HOST"
+    name: BB_POSAPI_REDIS_HOST
+  - valueFrom: "{{ global_var_environment }}_BB_POSAPI_REDIS_PORT"
+    name: BB_POSAPI_REDIS_PORT
+  - valueFrom: "{{ global_var_environment }}_BB_POSAPI_BB_WEB_USERNAME"
+    name: BB_POSAPI_BB_WEB_USERNAME
+  - valueFrom: "{{ global_var_environment }}_BB_POSAPI_BB_WEB_PASSWORD"
+    name: BB_POSAPI_BB_WEB_PASSWORD
+  - valueFrom: "{{ global_var_environment }}_BB_INTEGRATOR_KOWRI_ACCOUNTID"
+    name: BB_INTEGRATOR_KOWRI_ACCOUNTID
+  - valueFrom: "{{ global_var_environment }}_{{ global_var_product }}_KOWRI_BUSINESS_KEYCLOAK_CLIENT_SECRET"
+    name: BB_KEYCLOAK_CLIENT_SECRET
+
+bb_posapi_server_task_container_env:
+  - name: JAVA_VARS
+    value: "{{ bb_posapi_server_task_container_java_vars | join(' ') }}"    
+  - name: BB_POSAPI_KAFKA_BOOSTRAP
+    value: "{{ hostvars.localhost.reg_kafka_bootstrap_facts_ips_and_port }}"    
+  - name: BB_POSAPI_DOWNLOAD_PATH
+    value: "{{ global_var_cloudfront_base_url }}/download/"
+  - name: BB_POSAPI_IMAGE_PATH
+    value: "{{ bb_posapi_image_path }}"    
+  - name: BB_POSAPI_BB_WEB_URL
+    value: "http://{{ global_var_services_details.kowribusinessserver.name }}.{{ global_var_priv_dns_namespace }}:{{ global_var_services_details.kowribusinessserver.intPort }}"
+  - name: BB_POSAPI_BB_WEB_CHECKOUT_URL
+    value: "https://{{ global_var_services_details.webposserver.domain }}/slydepay/"
+  - name: BB_POSAPI_PAYMENT_FLOWS_AUTH_REQUIRED
+    value: "{{ bb_posapi_server_payment_flow_auth_required }}"
+  - name: BB_POSAPI_PAYMENT_CLIENT_HEADER_NAME
+    value: "x-client-app"
+  - name: BB_POSAPI_PAYMENT_TRUSTED_CLIENTS
+    value: "billbox-ussd"
+  - name: BB_POSAPI_PAYMENT_AUTH_COOKIE_NAME
+    value: "POSCLIENT"
+  - name: BB_POSAPI_ELEVY_NAME
+    value: "GRA e-Levy"
+  - name: BB_POSAPI_ELEVY_RATE
+    value: "0.01"
+  - name: BB_POSAPI_ELEVY_SERVICE
+    value: "5389"
+  - name: BB_POSAPI_ELEVY_CPID
+    value: "7013"
+  - name: BB_POSAPI_ELEVY_PATH_GENERAL
+    value: "/switching/process"
+  - name: BB_POSAPI_ELEVY_PATH_CONFIRM
+    value: "/billing/pay"
+  - name: BB_POSAPI_ELEVY_ENABLE
+    value: "true"
+  - name: BB_POSAPI_ELEVY_COUNTRIES
+    value: "GH"
+  - name: BB_POSAPI_SLEEP_AFTER_DEVICE_UPDATE
+    value: "100"
+  - name: BB_POSAPI_PAYMENT_TRUSTED_CLIENTS
+    value: "billbox-ussd,kb-core,kowriciv"
+  - name: BB_KEYCLOAK_AUTH_URL
+    value: "http://keycloakserver.billbox.uat:8080/auth"
+  - name: BB_KEYCLOAK_REALM
+    value: "Billbox"
+  - name: BB_KEYCLOAK_CLIENT_ID
+    value: "billbox"
+
+bb_posapi_server_task_container_mon_env:
+  - name: "DD_DOCKER_ENV_AS_TAGS"
+    # value: '{"ENVIRONMENT":"{{ global_var_environment }}"}'
+    value: ' { "ENVIRONMENT": {{global_var_environment }} }'
+  - name: "DD_APM_NON_LOCAL_TRAFFIC"
+    value: "true"
+  - name: "ECS_FARGATE"
+    value: "true"
+  - name: "DD_APM_ENABLED"
+    value: "true"
+  - name: "DD_DOGSTATSD_NON_LOCAL_TRAFFIC"
+    value: "true"
+  - name: "DD_DOGSTATSD_PORT"
+    value: "8125"
+  - name: "DD_APM_RECEIVER_PORT"
+    value: "8126"
+bb_posapi_server_task_container_mon_secretenv:
+  - valueFrom: "{{ global_var_environment }}_DD_API_KEY"
+    name: DD_API_KEY
+bb_posapinginx_server_task_container_env:
+  - name: FULL_GIT_URL
+    value: "https://{{ vault_git_username }}:{{ vault_git_token }}@bitbucket.org/kowri/kb-nginx-configuration.git"
+  - name: CONF_FILE
+    value: "posapiserver_prod.conf"
+bb_posapi_server_task_container_log_driver: awslogs
+bb_posapi_server_task_container_log_logsgroup: "{{ global_var_country_code }}-{{ global_var_product }}-{{ global_var_environment }}-ecsgroup"
+bb_posapi_server_task_container_log_logsregion: "{{ global_var_ird_region }}"
+bb_posapi_server_task_container_log_logsprefix: "{{ global_var_country_code }}-{{ global_var_product }}-{{ global_var_environment }}-"
+bb_posapi_alb_arn: "{{ hostvars.localhost.reg_alb_facts.load_balancers.0.load_balancer_arn }}"
+bb_posapi_service_name: "{{global_var_country_code}}-{{global_var_product}}-{{global_var_environment}}-{{ global_var_services_details.posapiserver.name }}-service"
+bb_posapi_targetgroup_name: "{{ global_var_product }}-{{ global_var_environment }}-{{ global_var_services_details.posapiserver.application_name }}TG"
+bb_posapi_targetgroup_protocol: "http"
+bb_posapi_targetgroup_success_http_code: 200
+bb_posapi_targetgroup_hc_interval: 6
+bb_posapi_targetgroup_hc_timeout: 5
+bb_posapi_targetgroup_hc_healthycount: 3
+bb_posapi_targetgroup_hc_unhealthycount: 3
+bb_posapi_targetgroup_hc_path: "/actuator/health"
+bb_posapi_targetgroup_hc_protocol: "http"
+bb_posapi_targetgroup_targettype: "ip"
+
+bb_posapi_service_count: 1
+bb_posapi_service_platform_version: 1.3.0
+bb_posapi_service_hc_graceperiod: 600
+bb_posapi_service_autoscalling_policy_type: "TargetTrackingScaling"
+bb_posapi_service_autoscalling_min_task: "{{ bb_posapi_service_count }}"
+bb_posapi_service_autoscalling_max_task: 4
+bb_posapi_service_mem_autoscalling_policy_name: "{{ bb_posapi_server_task_family_name }}-mem-as-policy"
+bb_posapi_service_cpu_autoscalling_policy_name: "{{ bb_posapi_server_task_family_name }}-cpu-as-policy"
+bb_posapi_service_mem_autoscalling_tracking_scaling_target_value: 70
+bb_posapi_service_cpu_autoscalling_tracking_scaling_target_value: 50
+bb_posapi_service_mem_autoscalling_tracking_scaling_metric_spec: "ECSServiceAverageMemoryUtilization"
+bb_posapi_service_cpu_autoscalling_tracking_scaling_metric_spec: "ECSServiceAverageCPUUtilization"
+bb_posapi_service_mem_autoscalling_tracking_scalout_cooldown: 60
+bb_posapi_service_mem_autoscalling_tracking_scalin_cooldown: 60
+bb_posapi_service_cpu_autoscalling_tracking_scalout_cooldown: 120
+bb_posapi_service_cpu_autoscalling_tracking_scalin_cooldown: 180
+bb_posapi_service_awscli_enabled: false
+bb_posapi_service_monitoringserver_image: "datadog/agent:latest"
+bb_posapi_service_monitoringserver_name: "datadog-agent"
+# bb_posapi_service_scheduled_autoscalling: false
+# bb_posapi_service_wake_cron: "00 06 ? * MON-FRI *"
+# bb_posapi_service_sleep_cron: "59 20 ? * MON-FRI *"
+

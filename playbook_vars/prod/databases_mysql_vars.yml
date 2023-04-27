@@ -1,0 +1,24 @@
+# jumpbox_mysql_drop_database_details:
+# - {
+#  root_username: "{{ vault_main_rds_root_username }}",
+#  root_password: "{{ vault_main_rds_root_password }}",
+#  db_name: "{{ vault_main_rds_app_dbname }}",
+#  db_host: "{{ groups['main_mysql_target_helper'][0] }}",
+#  db_port: "{{ global_var_mysql_port }}"
+# }
+
+jumpbox_mysql_create_database_details:
+# - {
+#   root_username: "{{ vault_mysql_root_username }}",
+#   root_password: "{{ vault_mysql_root_password }}",
+#   db_name: "{{ vault_mysql_cardhandler_dbname }}",
+#   db_host: "{{ groups[main_mysql_target_helper][0] }}",
+#   db_port: "{{ global_var_mysql_port }}"
+# },
+- {
+  root_username: "{{ vault_mysql_root_username }}",
+  root_password: "{{ vault_mysql_root_password }}",
+  db_name: "{{ vault_mysql_template_dbname }}",
+  db_host: "{{ groups[main_mysql_target_helper][0] }}",
+  db_port: "{{ global_var_mysql_port }}"
+}

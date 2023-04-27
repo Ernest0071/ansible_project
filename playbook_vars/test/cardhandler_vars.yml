@@ -1,0 +1,130 @@
+
+
+bb_cardhandler_server_enabled: true
+smartgrid_active_region: "{{ global_var_ird_region }}"
+smartgrid_active_priv_dns_namespace: "{{ global_var_priv_dns_namespace }}"
+bb_cardhandler_server_task_family_name: "{{ global_var_country_code }}-{{ global_var_product }}-{{global_var_environment}}-{{ global_var_services_details.cardhandlerserver.name }}"
+bb_cardhandler_server_task_executionRoleArn: "{{ hostvars.localhost.reg_ecs_role_facts.iam_roles.0.arn }}"
+bb_cardhandler_server_task_networkmode: awsvpc
+bb_cardhandler_server_task_ecsmode: FARGATE
+bb_cardhandler_server_task_cpu: 512
+bb_cardhandler_server_task_memory: 2048
+bb_cardhandler_server_task_container_name: "{{ global_var_services_details.cardhandlerserver.name }}"
+bb_cardhandler_server_task_container_image: "{{ global_var_services_details.cardhandlerserver.image }}"
+bb_cardhandler_server_task_container_cpu: 512
+bb_cardhandler_server_task_container_memory: 2048
+bb_cardhandler_server_task_container_memoryReservation: 256
+# bb_cardhandler_server_task_container_credentials_parameter: "{{ hostvars.localhost.reg_nexus_secrets_facts.ARN }}"
+bb_cardhandler_sidecar_server_task_container_credentials_parameter: "{{ hostvars.localhost.reg_quayio_secrets_facts.ARN }}"
+bb_cardhandler_server_task_container_credentials_parameter: "{{ hostvars.localhost.reg_quayio_secrets_facts.ARN }}"
+bb_cardhandler_server_task_container_essential: true
+bb_cardhandler_sidecar_server_task_container_essential: true
+bb_cardhandler_server_task_container_java_vars: 
+- "-XX:MaxRAM={{ bb_cardhandler_server_task_memory * 2|pow(20) | int}}"
+- "-XX:MinRAMPercentage=40.0"
+- "-XX:MaxRAMPercentage=90.0"
+- "-XX:+HeapDumpOnOutOfMemoryError" 
+- "-Dspring.cloud.config.uri=http://{{ global_var_services_details.configserver.name }}.{{ global_var_priv_dns_namespace }}:{{ global_var_services_details.configserver.hostPort }}"
+- "-Dspring.application.name={{ global_var_services_details.cardhandlerserver.application_name }}"
+- "-Dspring.cloud.config.name={{ global_var_services_details.cardhandlerserver.config_name }}"
+- "-Dspring.cloud.config.profile={{ global_var_environment }},mysql-{{ global_var_environment }},mongo-{{ global_var_environment }}"
+- "-Dspring.profiles.active={{ global_var_environment }}"
+- "-Dserver.port={{ global_var_services_details.cardhandlerserver.containerPort }}"
+- "-DLOGENTRIES_TOKEN={{ global_var_services_details.cardhandlerserver.logToken }}"
+- "-DVAULT_ADDR=http://127.0.0.1:8200"
+- "-DVAULT_TOKEN=00000000-0000-0000-0000-000000000000"
+- "-Dlogging.level.root=INFO"  
+# - "-Ddd.agent.host=localhost"
+# - "-Ddd.agent.port=8126"
+# - "-Ddd.service={{ bb_cardhandler_service_name }}"
+# - "-Ddd.env={{ global_var_environment }}"
+# - "-Ddd.version={{ global_var_services_details.cardhandlerserver.image.split(':')[1] }}"
+# - "-javaagent:/opt/datadog/dd-java-agent.jar"
+
+bb_cardhandler_server_task_container_mon_env:
+  - name: "DD_DOCKER_ENV_AS_TAGS"
+    value: '{"ENVIRONMENT":"{{ global_var_environment }}"}'
+  - name: "DD_APM_NON_LOCAL_TRAFFIC"
+    value: "true"
+  - name: "ECS_FARGATE"
+    value: "true"
+  - name: "DD_APM_ENABLED"
+    value: "true" 
+  - name: "DD_DOGSTATSD_NON_LOCAL_TRAFFIC"
+    value: "true"
+  - name: "DD_DOGSTATSD_PORT"
+    value: "8125"
+  - name: "DD_APM_RECEIVER_PORT"
+    value: "8126"
+bb_cardhandler_server_task_container_env:
+  - name: JAVA_VARS
+    value: "{{ bb_cardhandler_server_task_container_java_vars | join(' ') }}"
+bb_cardhandler_server_task_container_secret_rawenv:
+  mon_api_key:
+    id: "{{ global_var_environment }}_DD_API_KEY"
+    name: DD_API_KEY
+    content: "{{ vault_datadog_api_key }}"
+bb_cardhandler_server_task_container_mon_secretenv:
+  - valueFrom: "{{ global_var_environment }}_DD_API_KEY"
+    name: DD_API_KEY
+
+bb_cardhandler_server_task_container_secretenv:
+  - valueFrom: "{{ global_var_environment }}_DD_API_KEY"
+    name: DD_API_KEY
+bb_cardhandler_nginx_server_task_container_env:
+  - name: FULL_GIT_URL
+    value: "https://cicd:vgKtExfxqj91GgM9nTAN@git.doersops.com/smartgrid-properties/billbox_nginx_configurations.git"
+  - name: CONF_FILE
+    value: "cardhandlerserver_uat.conf"
+
+bb_cardhandler_server_task_container_log_driver: awslogs
+bb_cardhandler_server_task_container_log_logsgroup: "{{ global_var_country_code }}-{{ global_var_product }}-{{ global_var_environment }}-ecsgroup"
+bb_cardhandler_server_task_container_log_logsregion: "{{ global_var_ird_region }}"
+bb_cardhandler_server_task_container_log_logsprefix: "{{ global_var_country_code }}-{{ global_var_product }}-{{ global_var_environment }}-"
+bb_cardhandler_alb_arn: "{{ hostvars.localhost.reg_alb_facts.load_balancers.0.load_balancer_arn }}"
+bb_cardhandler_service_name: "{{global_var_country_code}}-{{global_var_product}}-{{global_var_environment}}-{{ global_var_services_details.cardhandlerserver.name }}-service"
+bb_cardhandler_targetgroup_name: "{{ global_var_product }}-{{ global_var_environment }}-{{ global_var_services_details.cardhandlerserver.application_name }}TG"
+bb_cardhandler_targetgroup_protocol: "http"
+bb_cardhandler_targetgroup_success_http_code: 200
+bb_cardhandler_targetgroup_hc_interval: 6
+bb_cardhandler_targetgroup_hc_timeout: 5
+bb_cardhandler_targetgroup_hc_healthycount: 3
+bb_cardhandler_targetgroup_hc_unhealthycount: 3
+bb_cardhandler_targetgroup_hc_path: "/actuator/health"
+bb_cardhandler_targetgroup_hc_protocol: "http"
+bb_cardhandler_targetgroup_targettype: "ip"
+
+bb_cardhandler_service_count: 1
+bb_cardhandler_service_platform_version: 1.3.0
+bb_cardhandler_service_hc_graceperiod: 600
+bb_cardhandler_service_autoscalling_policy_type: "TargetTrackingScaling"
+bb_cardhandler_service_autoscalling_min_task: "{{ bb_cardhandler_service_count }}"
+bb_cardhandler_service_autoscalling_max_task: 3
+bb_cardhandler_service_mem_autoscalling_policy_name: "{{ bb_cardhandler_server_task_family_name }}-mem-as-policy"
+bb_cardhandler_service_cpu_autoscalling_policy_name: "{{ bb_cardhandler_server_task_family_name }}-cpu-as-policy"
+bb_cardhandler_service_mem_autoscalling_tracking_scaling_target_value: 70
+bb_cardhandler_service_cpu_autoscalling_tracking_scaling_target_value: 50
+bb_cardhandler_service_mem_autoscalling_tracking_scaling_metric_spec: "ECSServiceAverageMemoryUtilization"
+bb_cardhandler_service_cpu_autoscalling_tracking_scaling_metric_spec: "ECSServiceAverageCPUUtilization"
+bb_cardhandler_service_mem_autoscalling_tracking_scalout_cooldown: 60
+bb_cardhandler_service_mem_autoscalling_tracking_scalin_cooldown: 60
+bb_cardhandler_service_cpu_autoscalling_tracking_scalout_cooldown: 120
+bb_cardhandler_service_cpu_autoscalling_tracking_scalin_cooldown: 180
+bb_cardhandler_service_awscli_enabled: false
+bb_cardhandler_service_wake_cron: "30 04 ? * MON-FRI *"
+bb_cardhandler_service_sleep_cron: "59 20 ? * MON-SUN *"
+bb_cardhandler_service_scheduled_autoscalling: false
+
+
+
+bb_cardhandler_transaction_url_success: "https://{{ global_var_services_details.cardhandlerserver.domain }}/secure/card/callback/complete"
+bb_cardhandler_transaction_url_error: "https://{{ global_var_services_details.cardhandlerserver.domain }}/secure/card/processing/error"
+bb_cardhandler_procesor: MIGS
+bb_cardhandler_redis_host: "{{ hostvars.localhost.reg_elasticache_facts }}"
+bb_cardhandler_redis_port: "{{ global_var_redis_port }}"
+bb_cardhandler_service_assign_public_ip: yes
+bb_cardhandler_server_task_container_datadog_essential: false
+bb_cardhandler_server_task_container_envoy_essential: false
+bb_cardhandler_elk_cluster_nodes: "https://{{ hostvars.localhost.reg_elasticsearch_cluster.Endpoints.vpc }}"
+bb_cardhandler_context_path: /
+

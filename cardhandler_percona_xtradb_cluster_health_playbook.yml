@@ -1,0 +1,42 @@
+--- 
+- import_playbook: fact_gatherer_playbook.yml
+  tags:
+    - facts
+
+- hosts: "tag_Name_{{ global_var_country_code }}_{{ global_var_product }}_{{ global_var_environment }}_mysql"
+  gather_facts: true
+  become: true 
+  vars_files:
+  - "playbook_vars/{{ global_var_environment }}/mysql_vars.yml"
+  - "playbook_vars/{{ global_var_environment }}/vault/{{ global_var_environment }}_variables.vault"
+  - "playbook_vars/{{ global_var_environment }}/global_vars.yml"
+  tasks:
+    - name: Setting up bootstaping potential master in graystate.dat file
+      lineinfile:
+        path: "{{ perconamysql_xtradb_cluster_bootstrap_path }}"
+        regexp: "^safe_to_bootstrap"
+        line: "safe_to_bootstrap: 1"
+      when: 
+        - perconamysql_xtradb_cluster_first_node is defined
+        - inventory_hostname == perconamysql_xtradb_cluster_first_node
+
+    - name: Stop Mysql cluster
+      service:
+        name: mysql
+        state: stopped
+
+    - name: Bootstrapping the first node
+      command: "/etc/init.d/mysql bootstrap-pxc"
+      when: 
+        - perconamysql_xtradb_cluster_first_node is defined
+        - inventory_hostname == perconamysql_xtradb_cluster_first_node
+
+    - name: Restart Mysql cluster
+      service:
+        name: mysql
+        state: restarted
+
+    - name: Check if port are open
+      wait_for:
+        port: "{{ global_var_mysql_port }}"
+        timeout: 1

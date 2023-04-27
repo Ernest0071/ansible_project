@@ -1,0 +1,110 @@
+---
+- name: Importing Fact Gatherer Playbook
+  import_playbook: fact_gatherer_playbook.yml
+  tags:
+  - facts
+
+- hosts: tag_Name_{{ global_var_country_code }}_{{ global_var_product }}_{{ global_var_environment }}_proxy
+# - hosts: "tag_Name_main_billbox_test_proxy"
+  roles:
+    - util
+    - webserver_family
+    - elasticbeats
+    - monitoring_family
+  become: true
+  gather_facts: true
+  user: "{{ global_var_ubuntu_user }}"
+  vars_files:
+    - "playbook_vars/{{ global_var_environment }}/proxy_nginx_forward_gh_niacard_vars.yml"
+    - "playbook_vars/{{ global_var_environment }}/vault/{{ global_var_environment }}_variables.vault"
+    - "playbook_vars/{{ global_var_environment }}/global_vars.yml"
+
+- hosts: localhost
+  connection: local
+  gather_facts: true
+  vars_files:
+    - "playbook_vars/{{ global_var_environment }}/proxy_nginx_forward_gh_niacard_vars.yml"
+    - "playbook_vars/{{ global_var_environment }}/vault/{{ global_var_environment }}_variables.vault"
+    - "playbook_vars/{{ global_var_environment }}/global_vars.yml"
+  tasks:
+
+    - name: Kowri Business Proxies || Creating instance dict with Id  and port prepended
+      ansible.builtin.set_fact:
+        instance_id_dict: "{{ dict(['Id'] | zip( hostvars.localhost.reg_proxy_instance_ids))  }}"
+        instance_port: {"Port": "{{ global_forward_gh_niacard_nginx_port }}"}
+
+    - name: Creating instance dict
+      ansible.builtin.set_fact:
+        instance_list_of_dict: "{{ instance_list_of_dict | default([]) + [{'Id': item, 'Port': global_forward_gh_niacard_nginx_port }] }}"
+      loop: "{{ hostvars.localhost.reg_proxy_instance_ids }}"
+
+
+
+    - name: Kowri Business Proxies || Obtaining target group facts
+      elb_target_group_info:
+        names: "{{ global_var_product_short_hand }}-{{ global_var_environment }}-{{ forward_gh_niacard_targetgroup_name }}"
+        region: "{{ global_var_ecs_region }}"
+      register: reg_forward_gh_niacard_target_group_facts
+
+    - debug: var=reg_forward_gh_niacard_target_group_facts
+
+    - name: Kowri Business Proxies || Creating forward_gh_niacard target group
+      elb_target_group:
+        name: "{{ global_var_product_short_hand }}-{{ global_var_environment }}-{{ forward_gh_niacard_targetgroup_name }}"
+        state: present
+        protocol: "{{ forward_gh_niacard_targetgroup_protocol }}"
+        successful_response_codes: "{{ forward_gh_niacard_targetgroup_success_http_code }}"
+        wait_timeout: 200
+        health_check_interval: "{{ forward_gh_niacard_targetgroup_hc_interval }}"
+        health_check_timeout: "{{ forward_gh_niacard_targetgroup_hc_timeout }}"
+        modify_targets: true
+        healthy_threshold_count: "{{ forward_gh_niacard_targetgroup_hc_healthycount }}"
+        health_check_path: "{{ forward_gh_niacard_targetgroup_hc_path }}"
+        health_check_protocol: "{{ forward_gh_niacard_targetgroup_hc_protocol }}"
+        unhealthy_threshold_count: "{{ forward_gh_niacard_targetgroup_hc_unhealthycount }}"
+        region: "{{ global_var_ecs_region }}"
+        target_type: "{{ forward_gh_niacard_targetgroup_targettype }}"
+        port: "{{ global_forward_gh_niacard_nginx_port }}"
+        vpc_id: "{{ hostvars.localhost.reg_vpc_facts.vpcs.0.id }}"
+        targets: "{{ instance_list_of_dict }}"
+        # wait: false
+      register: reg_forward_gh_niacard_target_group
+      when:
+        - reg_forward_gh_niacard_target_group_facts.target_groups | length == 0
+
+
+    - name: Kowri Business Proxies || Obtaining target group facts second run
+      elb_target_group_info:
+        names: "{{ global_var_product_short_hand }}-{{ global_var_environment }}-{{ forward_gh_niacard_targetgroup_name }}"
+        region: "{{ global_var_ecs_region }}"
+      register: reg_forward_gh_niacard_target_group_facts
+
+    - name: Kowri Business Proxies || Associating target group to a ALB listener for forward_gh_niacard
+      shell: >
+          aws elbv2 create-listener
+          --load-balancer-arn {{ hostvars.localhost.reg_internal_alb_facts.load_balancers.0.load_balancer_arn }}
+          --protocol HTTP
+          --port {{ global_forward_gh_niacard_nginx_port }}
+          --default-actions Type=forward,TargetGroupArn={{ reg_forward_gh_niacard_target_group_facts.target_groups.0.target_group_arn }}
+          --region {{ global_var_ecs_region }}
+          --profile {{ lookup('env', 'AWS_PROFILE') }}
+      when:
+        - global_awx_ad_hoc_shell_switch is defined
+        - not global_awx_ad_hoc_shell_switch
+
+    - name: Kowri Business Proxies || Associating target group to a ALB listener forforward_gh_niacard with awscli
+      shell: >
+          aws elbv2 create-listener
+          --load-balancer-arn {{ hostvars.localhost.reg_internal_alb_facts.load_balancers.0.load_balancer_arn }}
+          --protocol HTTP
+          --port {{ global_forward_gh_niacard_nginx_port }}
+          --default-actions Type=forward,TargetGroupArn={{ reg_forward_gh_niacard_target_group_facts.target_groups.0.target_group_arn }}
+          --region {{ global_var_ecs_region }}
+      when:
+        - global_awx_ad_hoc_shell_switch is defined
+        - global_awx_ad_hoc_shell_switch
+        - global_var_services_details.apigatewayserver.api_endpoint
+      environment:
+        AWS_ACCESS_KEY_ID: "{{ vault_aws_access_key }}"
+        AWS_SECRET_ACCESS_KEY: "{{ vault_aws_access_secret }}"
+

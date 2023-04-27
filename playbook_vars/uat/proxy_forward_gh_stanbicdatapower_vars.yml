@@ -1,0 +1,112 @@
+---
+proxy_forward_gh_stanbicdatapower_vhost_file: "forward_gh_stanbicdatapower.conf"
+forward_gh_stanbicdatapower_upstream_host1:  "196.8.206.104:5039"
+forward_gh_stanbicdatapower_upstream_host2:  "196.8.206.104:5040"
+forward_gh_stanbicdatapower_upstream_host1_mon_type: tcp
+forward_gh_stanbicdatapower_upstream_host1_mon_scheme: https
+forward_gh_stanbicdatapower_ssl_cert: "esbedpu01v2021.stanbic.com.gh.crt"
+forward_gh_stanbicdatapower_ssl_key: "esbedpu01v2021.stanbic.com.gh-privkey.pem"
+forward_gh_stanbicdatapower_client_ssl_folder_path: "/srv/ssl/client/forward_gh_stanbicdatapower_client/2021_2023"
+proxy_forward_gh_stanbicdatapower_log_access_file: "/var/log/nginx/forward_forward_gh_stanbicdatapower_nginx_proxy_access.log"
+proxy_forward_gh_stanbicdatapower_log_error_file: "/var/log/nginx/forward_forward_gh_stanbicdatapower_nginx_proxy_error.log"
+util_filesystem_enable: true
+util_filesystem_create_directory_with_pem_details_dict:
+  forward_gh_stanbicdatapowersslfolder:
+    path: "{{ forward_gh_stanbicdatapower_client_ssl_folder_path }}"
+aws_install_python_pip_enable: true
+aws_pip_install_boto_enable: true
+aws_install_awscli_enable: true
+aws_s3_enable: true
+aws_s3_pull_object_details:
+  forward_gh_stanbicdatapowercert:
+    bucket: "{{ global_var_mongo_s3_bucket }}"
+    objpath: "{{ global_var_billbox_s3_client_ssl_bucket_key }}/forward_gh_stanbicdatapower/2021_2023/{{ forward_gh_stanbicdatapower_ssl_cert }}"
+    dest_path: "{{ forward_gh_stanbicdatapower_client_ssl_folder_path }}/{{ forward_gh_stanbicdatapower_ssl_cert }}"
+  forward_gh_stanbicdatapowerkey:
+    bucket: "{{ global_var_mongo_s3_bucket }}"
+    objpath: "{{ global_var_billbox_s3_client_ssl_bucket_key }}/forward_gh_stanbicdatapower/2021_2023/{{ forward_gh_stanbicdatapower_ssl_key }}"
+    dest_path: "{{ forward_gh_stanbicdatapower_client_ssl_folder_path }}/{{ forward_gh_stanbicdatapower_ssl_key }}"
+webserverfamily_nginx_ppa_version_enable: true
+webserverfamily_nginx_enable: true
+webserverfamily_nginx_install_details:
+  - nginx
+  - nginx-extras
+webserverfamily_nginx_push_configfiles_details:
+  forward_forward_gh_stanbicdatapower:
+    src: "nginx/_generic_vhost.conf.j2"
+    dest: "/etc/nginx/sites-available/{{ proxy_forward_gh_stanbicdatapower_vhost_file }}"
+    owner: "root"
+    group: "root"
+    port: "{{ global_forward_gh_stanbicdatapower_nginx_port }}"
+    ssl_enabled: false
+    domain_names:
+      - "localhost"
+    logging_enabled: true
+    access_log_file: "{{ proxy_forward_gh_stanbicdatapower_log_access_file }}"
+    access_format: "jsonlog"
+    error_log_file: "{{ proxy_forward_gh_stanbicdatapower_log_error_file }}"
+    bodyinstructions:
+      - >
+        proxy_ssl_certificate
+        {{ forward_gh_stanbicdatapower_client_ssl_folder_path }}/{{ forward_gh_stanbicdatapower_ssl_cert }}
+      - >
+        proxy_ssl_certificate_key
+        {{ forward_gh_stanbicdatapower_client_ssl_folder_path }}/{{ forward_gh_stanbicdatapower_ssl_key }}
+    locations:
+      - context: "/test"
+        instructions:
+          - "access_log off"
+          - "return 200"
+      - context: "/service"
+        instructions:
+          - "proxy_set_header X-Forwarded-For $server_addr"
+          - "proxy_pass {{ forward_gh_stanbicdatapower_upstream_host1_mon_scheme }}://{{ forward_gh_stanbicdatapower_upstream_host1 }}/service"
+      - context: "/billbox"
+        instructions:
+          - "proxy_set_header X-Forwarded-For $server_addr"
+          - "proxy_pass {{ forward_gh_stanbicdatapower_upstream_host1_mon_scheme }}://{{ forward_gh_stanbicdatapower_upstream_host1 }}/billbox"
+      - context: "/gip"
+        instructions:
+          - "proxy_set_header X-Forwarded-For $server_addr"
+          - "proxy_pass {{ forward_gh_stanbicdatapower_upstream_host1_mon_scheme }}://{{ forward_gh_stanbicdatapower_upstream_host2 }}/"
+webserverfamily_nginx_common_enable_sites_details_hash:
+  forward_gh_stanbicdatapower:
+    vhost: "{{ proxy_forward_gh_stanbicdatapower_vhost_file }}"
+webserverfamily_nginx_common_validation_enable: true
+webserverfamily_nginx_common_restart_enabled: true
+elasticbeats_configuration_details:
+  forward_gh_stanbicdatapower:
+      src: "monitor.yml.j2"
+      dest: "/etc/heartbeat/monitors.d/forward_gh_stanbicdatapower.yml"
+      type: "{{ forward_gh_stanbicdatapower_upstream_host1_mon_type }}"
+      name: "forward_gh_stanbicdatapower"
+      enabled: true
+      schedule: "@every 1h"
+      hosts: ["{{forward_gh_stanbicdatapower_upstream_host1}},{{ forward_gh_stanbicdatapower_upstream_host2 }}"]
+elasticbeats_systemd_details: 
+  restart:
+      name: "heartbeat-elastic"
+      state: "restarted"
+elk_instance_name: "{{ hostvars[inventory_hostname]['ec2_placement'] }}"
+billbox_r7insightops_config_path: "/opt/rapid7/ir_agent/components/insight_agent/common/config"
+forward_gh_stanbicdatapower_r7insightops_access_destination: "forward_gh_stanbicdatapowerAccess"
+forward_gh_stanbicdatapower_r7insightops_error_destination: "forward_gh_stanbicdatapowerError"
+monitoringfamily_r7insightops_forward_gh_stanbicdatapower_accesslog_name: "NginxProxy_Forward_GH_Stanbicdatapower_Access_log"
+monitoringfamily_r7insightops_forward_gh_stanbicdatapower_errorlog_name: "NginxProxy_Forward_GH_Stanbicdatapower_Error_log"
+monitoringfamily_r7insightops_agent_templating_details:
+  api_key: "{{ vault_rapid7insightops_apikey }}"
+  servername: "{{ inventory_hostname }}"
+  dest: "{{ monitoringfamily_r7insightops_config_path }}/logging.json"
+  src: "rapid7_insightops/config.j2"
+monitoringfamily_r7insightops_agent_templating_data:
+  forward_gh_stanbicdatapower:
+      appnginxaccess:
+        r7dest: "{{ global_var_insightops_log_set }}/{{ monitoringfamily_r7insightops_forward_gh_stanbicdatapower_accesslog_name }}"
+        enabled: "true"
+        name: "{{ monitoringfamily_r7insightops_forward_gh_stanbicdatapower_accesslog_name }}"
+        path: "{{ proxy_forward_gh_stanbicdatapower_log_access_file }}"
+      appnginxerror:
+        r7dest: "{{ global_var_insightops_log_set }}/{{ monitoringfamily_r7insightops_forward_gh_stanbicdatapower_errorlog_name }}"
+        enabled: "true"
+        name: "{{ monitoringfamily_r7insightops_forward_gh_stanbicdatapower_errorlog_name }}"
+        path: "{{ proxy_forward_gh_stanbicdatapower_log_error_file }}"

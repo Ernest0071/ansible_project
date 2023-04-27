@@ -1,0 +1,139 @@
+
+
+bb_ussd_server_enabled: true
+bb_active_region: "{{ global_var_ird_region }}"
+bb_active_priv_dns_namespace: "{{ global_var_priv_dns_namespace }}"
+bb_ussd_server_task_family_name: "{{ global_var_country_code }}-{{ global_var_product }}-{{global_var_environment}}-{{ global_var_services_details.ussdserver.name }}"
+bb_ussd_server_task_executionRoleArn: "{{ hostvars.localhost.reg_ecs_role_facts.iam_roles.0.arn }}"
+bb_ussd_server_task_networkmode: awsvpc
+bb_ussd_server_task_ecsmode: FARGATE
+bb_ussd_server_task_cpu: 512
+bb_ussd_server_task_memory: 2048
+bb_ussd_server_task_container_name: "{{ global_var_services_details.ussdserver.name }}"
+bb_ussd_server_task_container_image: "{{ global_var_services_details.ussdserver.image }}"
+bb_ussd_server_task_container_cpu: 512
+bb_ussd_server_task_container_memory: 2048
+bb_ussd_server_task_container_memoryReservation: 256
+bb_ussd_server_task_container_credentials_parameter: "{{ hostvars.localhost.reg_dockerhub_secrets_facts.ARN }}"
+bb_ussd_server_task_container_essential: true
+bb_ussd_sidecar_server_task_container_essential: true
+bb_ussd_server_task_container_java_vars:
+- "-XX:MaxRAM={{ bb_ussd_server_task_memory * 2|pow(20) | int}}"
+- "-XX:MinRAMPercentage=40.0"
+- "-XX:MaxRAMPercentage=90.0"
+- "-XX:+HeapDumpOnOutOfMemoryError" 
+- "-Dspring.cloud.config.uri=http://{{ global_var_services_details.configserver.name }}.{{ global_var_priv_dns_namespace }}:{{ global_var_services_details.configserver.hostPort }}"
+- "-Dspring.application.name={{ global_var_services_details.ussdserver.application_name }}"
+- "-Dspring.cloud.config.name={{ global_var_services_details.ussdserver.config_name }}"
+- "-Dspring.cloud.config.profile={{ global_var_environment }}"
+- "-Dspring.profiles.active={{ global_var_environment }},mongo"
+- "-Dserver.port={{ global_var_services_details.ussdserver.containerPort }}"
+- "-DLOGENTRIES_TOKEN={{ global_var_services_details.ussdserver.logToken }}"
+- "-Dlogging.level.root=INFO"
+- "-Ddd.agent.host=localhost"
+- "-Ddd.agent.port=8126"
+- "-Ddd.service={{ bb_ussd_service_name }}"
+- "-Ddd.env={{ global_var_environment }}"
+- "-Ddd.version={{ global_var_services_details.ussdserver.image.split(':')[1] }}"
+- "-javaagent:/opt/datadog/dd-java-agent.jar"
+bb_ussd_server_task_container_mon_env:
+  - name: "DD_DOCKER_ENV_AS_TAGS"
+    value: ' {"ENVIRONMENT":"{{ global_var_environment }}"}'
+  - name: "DD_APM_NON_LOCAL_TRAFFIC"
+    value: "true"
+  - name: "FARGATE"
+    value: "true"
+  - name: "DD_APM_ENABLED"
+    value: "true"
+  - name: "DD_PROCESS_AGENT_ENABLED"
+    value: "true"  
+  - name: "DD_DOGSTATSD_NON_LOCAL_TRAFFIC"
+    value: "true"
+  - name: "DD_DOGSTATSD_PORT"
+    value: "8125"
+  - name: "DD_APM_RECEIVER_PORT"
+    value: "8126"
+
+bb_ussd_server_task_container_env:
+  - name: JAVA_VARS
+    value: "{{ bb_ussd_server_task_container_java_vars | join(' ') }}"
+  - name: GIT_URL
+    value: "{{ global_var_configuration_git_details[0].repo_url }}"
+bb_ussd_server_task_container_mon_secretenv:
+  - valueFrom: "{{ global_var_environment }}_DD_API_KEY"
+    name: DD_API_KEY
+bb_ussd_server_task_container_secretenv_definition:
+  git_cred:
+    id: "{{ global_var_environment }}_GIT_CRED"
+    name: GIT_CRED
+    content: "{{ vault_git_username }}:{{ vault_git_token }}"
+  mon_api_key:
+    id: "{{ global_var_environment }}_DD_API_KEY"
+    name: DD_API_KEY
+    content: "{{ vault_datadog_api_key }}"
+bb_ussd_nginx_server_task_container_env:
+  - name: FULL_GIT_URL
+    value: "https://{{ vault_git_username }}:{{ vault_git_token }}@bitbucket.org/kowri/kb-nginx-configuration.git"
+  - name: CONF_FILE
+    value: "ussdserver_prod.conf"
+bb_ussd_server_task_container_log_driver: awslogs
+bb_ussd_server_task_container_log_logsgroup: "{{ global_var_log_group }}"
+bb_ussd_server_task_container_log_logsregion: "{{ bb_active_region }}"
+bb_ussd_server_task_container_log_logsprefix: "{{ global_var_country_code }}-{{ global_var_product }}-{{ global_var_environment }}-"
+bb_ussd_alb_arn: "{{ hostvars.localhost.reg_alb_facts.load_balancers.0.load_balancer_arn }}"
+bb_ussd_service_name: "{{global_var_country_code}}-{{global_var_product}}-{{global_var_environment}}-{{ global_var_services_details.ussdserver.name }}-service"
+bb_ussd_targetgroup_name: "{{ global_var_product }}-{{ global_var_environment }}-{{ global_var_services_details.ussdserver.application_name }}TG"
+bb_ussd_targetgroup_protocol: "http"
+bb_ussd_targetgroup_success_http_code: 200
+bb_ussd_targetgroup_hc_interval: 6
+bb_ussd_targetgroup_hc_timeout: 5
+bb_ussd_targetgroup_hc_healthycount: 3
+bb_ussd_targetgroup_hc_unhealthycount: 3
+bb_ussd_targetgroup_hc_path: "/healthcheck"
+bb_ussd_targetgroup_hc_protocol: "http"
+bb_ussd_targetgroup_targettype: "ip"
+
+bb_ussd_service_count: 1
+bb_ussd_service_platform_version: 1.3.0
+bb_ussd_service_hc_graceperiod: 600
+# bb_ussd_redis:
+#   host: "{{ hostvars.localhost.reg_elasticache_facts.elasticache_clusters.0.cache_nodes.0.endpoint.address }}"
+#   port: "{{ hostvars.localhost.reg_elasticache_facts.elasticache_clusters.0.cache_nodes.0.endpoint.port }}"
+#   namespace: "billbox:session"
+bb_ussd_service_autoscalling_policy_type: "TargetTrackingScaling"
+bb_ussd_service_autoscalling_min_task: 1
+bb_ussd_service_autoscalling_max_task: 6
+bb_ussd_service_mem_autoscalling_policy_name: "{{ bb_ussd_server_task_family_name }}-mem-as-policy"
+bb_ussd_service_cpu_autoscalling_policy_name: "{{ bb_ussd_server_task_family_name }}-cpu-as-policy"
+bb_ussd_service_mem_autoscalling_tracking_scaling_target_value: 60
+bb_ussd_service_cpu_autoscalling_tracking_scaling_target_value: 40
+bb_ussd_service_mem_autoscalling_tracking_scaling_metric_spec: "ECSServiceAverageMemoryUtilization"
+bb_ussd_service_cpu_autoscalling_tracking_scaling_metric_spec: "ECSServiceAverageCPUUtilization"
+bb_ussd_service_mem_autoscalling_tracking_scalout_cooldown: 60
+bb_ussd_service_mem_autoscalling_tracking_scalin_cooldown: 60
+bb_ussd_service_cpu_autoscalling_tracking_scalout_cooldown: 120
+bb_ussd_service_cpu_autoscalling_tracking_scalin_cooldown: 180
+bb_ussd_service_awscli_enabled: false
+bb_ussd_service_scheduled_autoscalling: false
+# bb_ussd_service_wake_cron: "10 04 ? * MON-FRI *"
+# bb_ussd_service_sleep_cron: "59 21 ? * MON-FRI *"
+bb_ussd_service_vars_main_base_url: "http://{{ global_var_services_details.coreserver.name }}.{{ global_var_priv_dns_namespace }}:{{ global_var_services_details.coreserver.containerPort }}"
+bb_ussd_service_vars_api_base_url: "http://{{ global_var_services_details.posapiserver.name }}.{{ global_var_priv_dns_namespace }}:{{ global_var_services_details.posapiserver.containerPort }}"
+bb_ussd_service_vars_api_username: "{{ vault_webposapi_username }}"
+bb_ussd_service_vars_api_password: "{{ vault_webposapi_password }}"
+bb_ussd_service_vars_api_appref: "loki"
+bb_ussd_service_vars_slydepay_ussd_base_url: http://10.0.0.34:8080
+bb_ussd_service_vars_mtn_providers:
+  - MTN_MONEY
+  - MTN_MONEY_PROMPT
+  - MTN_MONEY_APPROVAL
+bb_ussd_service_vars_atm_providers:
+  - AIRTELTIGO_MONEY
+bb_ussd_service_vars_vdc_providers:
+  - VODAFONE_CASH
+bb_ussd_service_vars_api_dreamoval_username: "{{ vault_ussd_dreamoval_api_username }}"
+bb_ussd_service_vars_api_dreamoval_password: "{{ vault_ussd_dreamoval_api_password }}"  
+bb_ussd_service_vars_api_slydepay_username: "{{ vault_ussd_slydepay_api_username }}"
+bb_ussd_service_vars_api_slydepay_password: "{{ vault_ussd_slydepay_api_password }}"
+bb_ussd_service_monitoringserver_name: "datadog-agent"
+bb_ussd_service_monitoringserver_image: "datadog/agent:latest"

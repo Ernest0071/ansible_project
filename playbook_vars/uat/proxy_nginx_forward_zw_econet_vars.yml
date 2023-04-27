@@ -1,0 +1,79 @@
+---
+local_vars_proxy_forward_zw_econet_vhost_file: "forward_zw_econet.conf"
+local_vars_proxy_forward_zw_econet_log_access_file: "/var/log/nginx/forward_zw_econet_nginx_proxy_access.log"
+local_vars_proxy_forward_zw_econet_log_error_file: "/var/log/nginx/forward_zw_econet_nginx_proxy_error.log"
+forward_zw_econet_upstream_postpaid_host1: "192.168.81.35:9080"
+forward_zw_econet_upstream_data_host1: "10.10.11.90:7022"
+# forward_zw_econet_upstream_postpaid_host1_mon_host1: "payonline.econet.co.zw/ecocashGateway/payment/v1/transactions/amount"
+forward_zw_econet_upstream_postpaid_host1_mon_type: tcp
+forward_zw_econet_upstream_postpaid_host1_mon_scheme: http
+webserverfamily_nginx_enable: true
+webserverfamily_nginx_push_configfiles_details:
+  forward_zw_econet:
+    src: "nginx/_generic_vhost.conf.j2"
+    dest: "/etc/nginx/sites-available/{{ local_vars_proxy_forward_zw_econet_vhost_file }}"
+    owner: "root"
+    group: "root"
+    port: "{{ global_forward_zw_econet_nginx_port }}"
+    ssl_enabled: false
+    domain_names:
+      - "localhost"
+    logging_enabled: true
+    access_log_file: "{{ local_vars_proxy_forward_zw_econet_log_access_file }}"
+    access_format: "jsonlog"
+    error_log_file: "{{ local_vars_proxy_forward_zw_econet_log_error_file }}"
+    locations:
+      - context: "/test"
+        instructions:
+          - "access_log off"
+          - "return 200"
+      - context: "/postpaid/"
+        instructions:
+          - "proxy_set_header X-Forwarded-For $server_addr"
+          - "proxy_pass {{ forward_zw_econet_upstream_postpaid_host1_mon_scheme}}://{{ forward_zw_econet_upstream_postpaid_host1 }}/"
+      - context: "/data/"
+        instructions:
+          - "proxy_set_header X-Forwarded-For $server_addr"
+          - "proxy_pass {{ forward_zw_econet_upstream_postpaid_host1_mon_scheme}}://{{ forward_zw_econet_upstream_data_host1 }}/"
+webserverfamily_nginx_common_enable_sites_details_hash:
+  forward_zw_econet:
+    vhost: "{{ local_vars_proxy_forward_zw_econet_vhost_file }}"
+webserverfamily_nginx_common_validation_enable: true
+webserverfamily_nginx_common_restart_enabled: true
+elasticbeats_configuration_details:
+  forward_zw_econet:
+      src: "monitor.yml.j2"
+      dest: "/etc/heartbeat/monitors.d/forward_zw_econet.yml"
+      type: "{{ forward_zw_econet_upstream_postpaid_host1_mon_type }}"
+      name: "forward_zw_econet"
+      enabled: true
+      schedule: "@every 1h"
+      hosts: ["{{ forward_zw_econet_upstream_postpaid_host1 }},{{ forward_zw_econet_upstream_data_host1 }}"]
+elasticbeats_systemd_details: 
+  restart:
+      name: "heartbeat-elastic"
+      state: "restarted"
+elk_instance_name: "{{ hostvars[inventory_hostname]['tags']['AName'] }}"
+monitoringfamily_enable_r7insightops: true
+monitoringfamily_r7insightops_config_path: "/opt/rapid7/ir_agent/components/insight_agent/common/config"
+monitoringfamily_r7insightops_forward_zw_econet_accesslog_name: "NginxProxy_Forward_ZW_Econet_Access_log"
+monitoringfamily_r7insightops_forward_zw_econet_errorlog_name: "NginxProxy_Forward_ZW_Econet_Error_log"
+monitoringfamily_r7insightops_agent_block_templating_details:
+  dest: "{{ monitoringfamily_r7insightops_config_path }}/logging.json"
+  path: "/config/logs"
+  # src: "rapid7_insightops/config_block.j2"
+  type: "inject"
+  blocks:
+    - {
+        destination: "{{ global_var_insightops_log_set }}/{{ monitoringfamily_r7insightops_forward_zw_econet_accesslog_name }}",
+        enabled: "true",
+        name: "{{ monitoringfamily_r7insightops_forward_zw_econet_accesslog_name }}",
+        path: "{{ local_vars_proxy_forward_zw_econet_log_access_file }}"
+    }
+    - {
+        destination: "{{ global_var_insightops_log_set }}/{{ monitoringfamily_r7insightops_forward_zw_econet_errorlog_name }}",
+        enabled: "true",
+        name: "{{ monitoringfamily_r7insightops_forward_zw_econet_errorlog_name }}",
+        path: "{{ local_vars_proxy_forward_zw_econet_log_error_file }}"
+    }
+monitoringfamily_r7insightops_agent_restart_enabled: true

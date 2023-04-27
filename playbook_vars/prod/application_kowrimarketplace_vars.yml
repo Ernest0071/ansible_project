@@ -1,0 +1,113 @@
+
+
+kowri_marketplace_server_task_family_name: "{{ global_var_country_code }}-{{ global_var_product }}-{{ global_var_environment }}-{{ global_var_services_details.kowrimplaceserver.name }}"
+kowri_marketplace_server_task_executionRoleArn: "{{ hostvars.localhost.reg_ecs_role_facts.iam_roles.0.arn }}"
+kowri_marketplace_server_task_networkmode: awsvpc
+kowri_marketplace_server_task_ecsmode: FARGATE
+kowri_marketplace_server_task_cpu: 256
+kowri_marketplace_server_task_memory: 512
+kowri_marketplace_server_task_container_name: "{{ global_var_services_details.kowrimplaceserver.name }}"
+kowri_marketplace_server_task_container_image: "{{ global_var_services_details.kowrimplaceserver.image }}"
+kowri_marketplace_server_task_container_cpu: 256
+kowri_marketplace_server_task_container_memory: 512
+kowri_marketplace_sidecar_server_task_container_credentials_parameter: "{{ hostvars.localhost.reg_quayio_secrets_facts.ARN }}"
+kowri_marketplace_server_task_container_credentials_parameter: "{{ hostvars.localhost.reg_dockerhub_secrets_facts.ARN }}"
+kowri_marketplace_server_task_container_essential: true
+kowri_marketplace_server_task_container_env:
+  - name: NODE_ENV
+    value: production
+  - name: PORT
+    value: "{{ global_var_services_details.kowrimplaceserver.containerPort }}"
+  - name: COL_API
+    value: "http://{{ global_var_shared_coreserver_name }}.{{ global_var_priv_dns_namespace }}:{{ global_var_shared_coreserver_port }}"
+  - name: POS_API
+    value: "http://{{ global_var_shared_posapiserver_name }}.{{ global_var_priv_dns_namespace }}:{{ global_var_shared_posapiserver_port }}"
+  - name: COL_USERNAME
+    value: "{{ vault_kowri_marketplaceapi_username }}"
+  - name: COL_PASSWORD
+    value: "{{ vault_kowri_marketplaceapi_password }}"
+  - name: POS_USERNAME
+    value: "{{ vault_kowri_marketplaceapi_username }}"
+  - name: POS_PASSWORD
+    value: "{{ vault_kowri_marketplaceapi_password }}"
+  - name: BT_MAX_REQUEST_RETRIES
+    value: "5"
+  - name: BT_MIN_REQUEST_LOCKOUT
+    value: "600000"
+  - name: BT_MAX_REQUEST_LOCKOUT
+    value: "3600000"
+  - name: CAPTCHA_SECRET_KEY
+    value: 6LcDAcoZAAAAAFxz9CS-eMvHaMO_KjuCXYOYEM5s
+kowri_marketplace_sidecar_server_task_container_essential: true
+kowri_marketplace_nginx_server_task_container_env:
+  - name: FULL_GIT_URL
+    value: "https://{{ vault_git_username }}:{{ vault_git_token }}@bitbucket.org/kowri/kb-nginx-configuration.git"
+  - name: CONF_FILE
+    value: "marketplaceserver_prod.conf"
+kowri_marketplace_server_task_container_mon_env:
+  - name: "DD_DOCKER_ENV_AS_TAGS"
+    value: ' {"ENVIRONMENT":"{{ global_var_environment }}"}'
+  - name: "DD_APM_NON_LOCAL_TRAFFIC"
+    value: "true"
+  - name: "ECS_FARGATE"
+    value: "true"
+  - name: "DD_APM_ENABLED"
+    value: "true"
+  - name: "DD_PROCESS_AGENT_ENABLED"
+    value: "true" 
+  - name: "DD_DOGSTATSD_NON_LOCAL_TRAFFIC"
+    value: "true"
+  - name: "DD_DOGSTATSD_PORT"
+    value: "8125"
+  - name: "DD_APM_RECEIVER_PORT"
+    value: "8126"
+kowri_marketplace_server_task_container_secretenv_definition:
+  mon_api_key:
+    id: "{{ global_var_environment }}_DD_API_KEY"
+    name: DD_API_KEY
+    content: "{{ vault_datadog_api_key }}"
+kowri_marketplace_server_task_container_secretenv:
+  - valueFrom: "{{ global_var_environment }}_DD_API_KEY"
+    name: DD_API_KEY
+kowri_marketplace_server_task_container_log_driver: awslogs
+kowri_marketplace_server_task_container_log_logsgroup: "{{ global_var_log_group }}"
+kowri_marketplace_server_task_container_log_logsregion: "{{ global_var_ecs_region }}"
+kowri_marketplace_server_task_container_log_logsprefix: "{{ global_var_product }}-{{ global_var_environment }}-"
+kowri_marketplace_alb_arn: "{{ hostvars.localhost.reg_alb_facts.load_balancers.0.load_balancer_arn }}"
+kowri_marketplace_service_name: "{{ kowri_marketplace_server_task_family_name }}-service"
+kowri_marketplace_targetgroup_name: "{{ global_var_product }}-{{ global_var_environment }}-{{ global_var_services_details.kowrimplaceserver.application_name }}TG"
+kowri_marketplace_targetgroup_protocol: "http"
+kowri_marketplace_targetgroup_success_http_code: 200
+kowri_marketplace_targetgroup_hc_interval: 6
+kowri_marketplace_targetgroup_hc_timeout: 5
+kowri_marketplace_targetgroup_hc_healthycount: 3
+kowri_marketplace_targetgroup_hc_unhealthycount: 3
+kowri_marketplace_targetgroup_hc_path: "/"
+kowri_marketplace_targetgroup_hc_protocol: "http"
+kowri_marketplace_targetgroup_targettype: "ip"
+kowri_marketplace_service_count: 1
+kowri_marketplace_service_platform_version: 1.3.0
+kowri_marketplace_service_hc_graceperiod: 600
+kowri_marketplace_service_autoscalling_policy_type: "TargetTrackingScaling"
+kowri_marketplace_service_autoscalling_min_task: 1
+kowri_marketplace_service_autoscalling_max_task: 8
+kowri_marketplace_service_mem_autoscalling_policy_name: "{{ kowri_marketplace_server_task_family_name }}-mem-as-policy"
+kowri_marketplace_service_cpu_autoscalling_policy_name: "{{ kowri_marketplace_server_task_family_name }}-cpu-as-policy"
+kowri_marketplace_service_mem_autoscalling_tracking_scaling_target_value: 80
+kowri_marketplace_service_cpu_autoscalling_tracking_scaling_target_value: 50
+kowri_marketplace_service_mem_autoscalling_tracking_scaling_metric_spec: "ECSServiceAverageMemoryUtilization"
+kowri_marketplace_service_cpu_autoscalling_tracking_scaling_metric_spec: "ECSServiceAverageCPUUtilization"
+kowri_marketplace_service_mem_autoscalling_tracking_scalout_cooldown: 60
+kowri_marketplace_service_mem_autoscalling_tracking_scalin_cooldown: 60
+kowri_marketplace_service_cpu_autoscalling_tracking_scalout_cooldown: 120
+kowri_marketplace_service_cpu_autoscalling_tracking_scalin_cooldown: 180
+kowri_marketplace_service_awscli_enabled: false
+kowri_marketplace_service_reverseproxy_image: "docker.io/dreamoval/billbox-nginx:dev-10"
+kowri_marketplace_service_reverseproxy_name: "nginxserver"
+kowri_marketplace_service_reverseproxy_container_port: 80
+kowri_marketplace_service_reverseproxy_host_port: 80
+kowri_marketplace_service_monitoringserver_image: "datadog/agent:latest"
+kowri_marketplace_service_monitoringserver_name: "datadog-agent"
+# kowri_marketplace_service_scheduled_autoscalling: true
+# kowri_marketplace_service_wake_cron: "00 12 ? * MON-FRI *"
+# kowri_marketplace_service_sleep_cron: "59 23 ? * MON-FRI *"

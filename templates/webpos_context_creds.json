@@ -1,0 +1,38 @@
+{
+    "slydepay": {
+        "username": "stanbic",
+        "password": "password"
+    },
+    "tonaton": {
+        "username": "stanbica",
+        "password": "password"
+    },
+    "billbox": {
+        "username": "bills@smartgrid.one",
+        "password": "password"
+    },
+    "billboxga": {
+        "username": "bills@smartgrid.one",
+        "password": "password"
+    },
+    "slydepayzw": {
+        "username": "marketplace-zim@slydepay.com",
+        "password": "Password1"
+    },
+    "strimline-hub-ci": {
+        "username": "strimlinehubcivtest",
+        "password": "qidE0@mPqlsb"
+    },
+    "strimline-hub-gh": {
+        "username": "strimlinehubghtest",
+        "password": "wslq@12Pwmal"
+    },
+    "dreamoval-ci": {
+        "username": "dreamcivapiapp",
+        "password": "Dr3@mc1vap1@pp"
+    },
+    "dreamoval": {
+        "username": "dreamghapiapp",
+        "password": "Dr3@mghap1@pp"
+    }
+}

@@ -1,0 +1,11 @@
+[
+    {
+        "Field": "path-pattern",
+        "PathPatternConfig": {
+            "Values": [
+                "{{ global_var_services_details.ussdserver.albPath }}",
+                "{{ global_var_services_details.ussdserver.albPath2 }}"
+                ]
+        }
+    }
+]

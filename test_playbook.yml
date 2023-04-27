@@ -1,0 +1,193 @@
+# # ---
+# # - import_playbook: fact_gatherer_playbook.yml
+# #   tags:
+# #     - facts
+
+# # - hosts: "tag_Name_{{ global_var_country_code }}_{{ global_var_product }}_{{ global_var_environment }}_mysql"
+# #   become: True
+# #   gather_facts: true
+# #   user: "{{ global_var_ubuntu_user }}"
+# #   vars_files:
+# #     - "playbook_vars/{{ global_var_environment }}/mysql_vars.yml"
+# #     - "playbook_vars/{{ global_var_environment }}/vault/{{ global_var_environment }}_variables.vault"
+# #     - "playbook_vars/{{ global_var_environment }}/global_vars.yml"
+# #   tasks:
+# #    - name: debug first node
+# #      debug: var=perconamysql_xtradb_cluster_first_node
+# #      ignore_errors: true
+
+# #   #  - name: debug groups 
+# #   #    debug: var=groups['{{ main_mysql_target_helper }}']
+# #   #    ignore_errors: true
+
+# #   #  - name: debug groups var with bracket and single quote
+# #   #    debug: var=groups.{{ main_mysql_target_helper }}
+# #   #    ignore_errors: true
+
+# - hosts: localhost
+#   connection: local
+#   gather_facts: no
+#   vars_files:
+#     - playbook_vars/{{ global_var_environment }}/global_vars.yml
+#     - playbook_vars/{{ global_var_environment }}/vault/{{ global_var_environment }}_variables.vault
+#   vars:
+#     monitoringfamily_r7insightops_config_path: "/opt/rapid7/ir_agent/components/insight_agent/common/config"
+#     monitoringfamily_r7insightops_agent_templating_details:
+#       api_key: "{{ vault_rapid7insightops_apikey }}"
+#       servername: "{{ inventory_hostname }}"
+#       dest: "{{ monitoringfamily_r7insightops_config_path }}/logging.json"
+#       src: "rapid7_insightops/config.j2"
+#     monitoringfamily_r7insightops_accesslog_name: "NginxProxy_MainAccess_log"
+#     monitoringfamily_r7insightops_errorlog_name: "NginxProxy_MainError_log"
+#     monitoringfamily_r7insightops_forward_zw_econet_accesslog_name: "NginxProxy_Forward_ZW_Econet_Access_log"
+#     monitoringfamily_r7insightops_forward_zw_econet_errorlog_name: "NginxProxy_Forward_ZW_Econet_Error_log"
+#     monitoringfamily_r7insightops_agent_templating_data:
+#       mainconfig:
+#         appnginxaccess: 
+#             r7dest: "{{ global_var_insightops_log_set }}/{{ monitoringfamily_r7insightops_accesslog_name }}"
+#         appnginxerror: 
+#             r7dest: "{{ global_var_insightops_log_set }}/{{ monitoringfamily_r7insightops_errorlog_name }}"
+#       forward_zw_econet:
+#         appnginxaccess: 
+#             r7dest: "{{ global_var_insightops_log_set }}/{{ monitoringfamily_r7insightops_forward_zw_econet_accesslog_name }}"
+#         appnginxerror: 
+#             r7dest: "{{ global_var_insightops_log_set }}/{{ monitoringfamily_r7insightops_forward_zw_econet_errorlog_name }}"  
+#     # monitoringfamily_r7insightops_agent_templating_data:
+#     #   mainconfig:
+#     #     appnginxaccess:
+#     #       r7dest: "{{ global_var_insightops_log_set }}/{{ monitoringfamily_r7insightops_accesslog_name }}"
+#     #       enabled: "true"
+#     #       name: "{{ monitoringfamily_r7insightops_accesslog_name }}"
+#     #       path: "{{ proxy_default_log_access_file }}"
+#     #     appnginxerror:
+#     #       r7dest: "{{ global_var_insightops_log_set }}/{{ monitoringfamily_r7insightops_errorlog_name }}"
+#     #       enabled: "true"
+#     #       name: "{{ monitoringfamily_r7insightops_errorlog_name }}"
+#     #       path: "{{ proxy_default_log_error_file }}" 
+#     #   forward_zw_econet:
+#     #     appnginxaccess:
+#     #       r7dest: "{{ global_var_insightops_log_set }}/{{ monitoringfamily_r7insightops_forward_zw_econet_accesslog_name }}"
+#     #       enabled: "true"
+#     #       name: "{{ monitoringfamily_r7insightops_forward_zw_econet_accesslog_name }}"
+#     #       path: "{{ proxy_forward_zw_econet_log_access_file }}"
+#     #     appnginxerror:
+#     #       r7dest: "{{ global_var_insightops_log_set }}/{{ monitoringfamily_r7insightops_forward_zw_econet_errorlog_name }}"
+#     #       enabled: "true"
+#     #       name: "{{ monitoringfamily_r7insightops_forward_zw_econet_errorlog_name }}"
+#     #       path: "{{ proxy_forward_zw_econet_log_error_file }}"   
+#   tasks:
+#     - name: Setting up the config file
+#       template:
+#         dest: "test_folder/logging.json"
+#         src: "test_folder/config.j2"
+#         mode: 0644
+#         backup: "yes"
+#       when: 
+#         - monitoringfamily_r7insightops_agent_templating_data is defined
+
+
+# - hosts: localhost
+#   connection: local
+#   gather_facts: yes
+#   # vars:
+#   #   instanceIds: ['i-123456','i-56789009']
+#   #   instancePort: 11207
+#   tasks:
+#     # - name: Test look up template
+#     #   debug:
+#     #     msg: "{{ lookup('template','templates/elb_target_group_list.j2',template_vars=dict(bb_target_list=instanceIds,bb_target_port=instancePort)) | from_yaml }}"
+#     - name: Creating local folder  
+#       file:
+#         path: "localrepo/uat/produdctname/configuration" 
+#         recurse: yes 
+#         state: directory
+#         # owner: "{{ lookup('env','USER') }}"
+#         mode: "0755" 
+
+# - name: Test
+#   hosts: localhost
+#   connection: local
+#   gather_facts: true
+#   vars:
+#     global_var_insightops_log_set: "Billbox2.0UAT"
+#     local_vars_proxy_default_log_access_file: "/var/log/nginx/default_access.log"
+#     local_vars_proxy_default_log_error_file: "/var/log/nginx/default_error.log"
+#     monitoringfamily_r7insightops_accesslog_name: "NginxProxy_DefaultAccess_log"
+#     monitoringfamily_r7insightops_errorlog_name: "NginxProxy_DefaultError_log"
+#     monitoringfamily_r7insightops_config_path: "/opt/rapid7/ir_agent/components/insight_agent/common/config"
+#     monitoringfamily_r7insightops_agent_block_templating_details:
+#       dest: "{{ monitoringfamily_r7insightops_config_path }}/logging.json"
+#       path: "/config/logs"
+#       src: "monitoring_blocks.j2"
+#       blocks:
+#         - destination: "{{ global_var_insightops_log_set }}/{{ monitoringfamily_r7insightops_accesslog_name }}"
+#           enabled: "true"
+#           name: "{{ monitoringfamily_r7insightops_accesslog_name }}"
+#           path: "{{ local_vars_proxy_default_log_access_file }}"
+#         # - destination: "{{ global_var_insightops_log_set }}/{{ monitoringfamily_r7insightops_errorlog_name }}"
+#         #   enabled: "true"
+#         #   name: "{{ monitoringfamily_r7insightops_errorlog_name }}"
+#         #   path: "{{ local_vars_proxy_default_log_error_file }}"
+#     monitoringfamily_items_list:
+#       - {
+#         "destination": "Billbox2.0UAT/Nginx_Proxy_DefaultAccess",
+#         "enabled": true,
+#         "name": "NginxDefaultAccess",
+#         "path": "/var/log/nginx/defaultaccess.log"
+#       }
+#       - {
+#         "destination": "Billbox2.0UAT/Nginx_Proxy_DefaultError",
+#         "enabled": true,
+#         "name": "NginxDefaultError",
+#         "path": "/var/log/nginx/defaulterror.log"
+#       }
+#   tasks:
+#     - name: Setting json variable
+#       ansible.builtin.set_fact:
+#         origcontent: "{{ lookup('file','list.json') | from_json  }}"
+#         block_to_inject: "{{ lookup('template',monitoringfamily_r7insightops_agent_block_templating_details.src)  | from_json }}"
+#         vars: "{{ monitoringfamily_r7insightops_agent_block_templating_details.blocks }}"
+
+#     - name: Injecting json blocks into the original content
+#       json_modify:
+#         data: "{{ origcontent | to_nice_json(indent=2)  }}"
+#         pointer: "/config/logs"
+#         action: "extend"
+#         extend: "{{ monitoringfamily_items_list   }}"
+
+#       register: replaced_json
+
+#     - name: show replaced_json registered variable
+#       ansible.builtin.debug:
+#         var: replaced_json.result
+
+
+- hosts: localhost
+  connection: local
+  gather_facts: true
+  vars_files:
+    - "playbook_vars/{{ global_var_environment }}/global_vars.yml"
+    - "playbook_vars/{{ global_var_environment }}/vault/{{ global_var_environment }}_variables.vault"
+  tasks:
+
+    # - name: Obtaining facts from RDS
+    #   community.aws.rds_instance_info:
+    #     # instance_name: "{{ global_var_country_code }}-{{ global_var_product }}-{{ global_var_environment }}-rds"
+    #     db_instance_identifier: "main-billbox-uat-rds"
+    #     region: "{{ global_var_ecs_region }}"
+    #   register: reg_rds_aurora_info
+    # - debug: var=reg_rds_aurora_info
+  
+    - name: testing with shell 
+      shell: "echo {{ hostvars[main_rds_target_helper].endpoint }} \n echo {{ hostvars[main_rds_target_helper].reader_endpoint }}"
+      
+    # - name: Obtaining facts from RDS 2
+    #   community.aws.rds_instance_info:
+    #     # instance_name: "{{ global_var_country_code }}-{{ global_var_product }}-{{ global_var_environment }}-rds"
+    #     db_instance_identifier: "main-billbox-uat-rds.endpoint"
+    #     region: "{{ global_var_ecs_region }}"
+    #   register: reg_rds_aurora_info2      
+    # - debug: var=
+    
+
+

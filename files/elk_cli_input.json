@@ -1,0 +1,23 @@
+{
+  "DomainName": "main-billbox-prod-elk",
+  "ElasticsearchVersion": "7.9",
+  "ElasticsearchClusterConfig": {
+    "InstanceType": "t2.small.elasticsearch",
+    "InstanceCount": 2,
+    "ZoneAwarenessEnabled": true,
+    "DedicatedMasterEnabled": false
+      },
+  "EBSOptions": {
+    "EBSEnabled": true,
+    "VolumeType": "gp2",
+    "VolumeSize": 10
+  },
+  "AccessPolicies": "{\"Version\": \"2012-10-17\", \"Statement\": [{\"Effect\": \"Allow\", \"Principal\": {\"AWS\": \"116643325382\"}, \"Action\": \"es:*\", \"Resource\": \"arn:aws:es:eu-west-1:116643325382:domain/main-billbox-prod-elk/*\"}]}",
+  "SnapshotOptions": {
+    "AutomatedSnapshotStartHour": 0
+  },
+  "VPCOptions": {
+    "SubnetIds": ["subnet-0f3990bdc43585871", "subnet-0ecd8db8d852f9c25"],
+    "SecurityGroupIds": ["sg-038fd1e4ecf7f4019"]
+  }
+}

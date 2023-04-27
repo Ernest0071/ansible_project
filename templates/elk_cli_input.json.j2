@@ -1,0 +1,27 @@
+{
+  "DomainName": "{{ local_elasticsearch_name }}",
+  "ElasticsearchVersion": "{{ local_elasticsearch_version }}",
+  "ElasticsearchClusterConfig": {
+    "InstanceType": "{{ local_elasticsearch_instance_type }}",
+    "InstanceCount": {{ local_elasticsearch_instance_count }},
+    "ZoneAwarenessEnabled": {{ (local_elasticsearch_instance_count == 1) | ternary('false', 'true') }},
+    "DedicatedMasterEnabled": {{ local_elasticsearch_dedicated_masters_enabled | lower }}
+    {% if local_elasticsearch_dedicated_masters_enabled %}
+    ,"DedicatedMasterType": "{{ local_elasticsearch_dedicated_masters_type }}",
+    "DedicatedMasterCount": {{ local_elasticsearch_dedicated_masters_count }},
+    {% endif %}
+  },
+  "EBSOptions": {
+    "EBSEnabled": true,
+    "VolumeType": "gp2",
+    "VolumeSize": {{ local_elasticsearch_ebs_size_gb }}
+  },
+  "AccessPolicies": "{{ lookup('template', 'elk-access-policy.json.j2') | to_json | regex_replace('\"', '\\\"') }}",
+  "SnapshotOptions": {
+    "AutomatedSnapshotStartHour": 0
+  },
+  "VPCOptions": {
+    "SubnetIds": {{ local_elasticsearch_subnet_list | to_json}},
+    "SecurityGroupIds": {{ local_elasticsearch_secgroup_list | to_json}}
+  }
+}

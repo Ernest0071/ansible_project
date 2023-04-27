@@ -1,0 +1,42 @@
+#
+monitoringfamily_install_file: "agent_installer.sh"
+monitoringfamily_r7insightops_config_path: "/opt/rapid7/ir_agent/components/insight_agent/common/config"
+monitoringfamily_enable_r7insightops: true
+monitoringfamily_r7insightops_agent_directory: "/tmp/insightops"
+monitoringfamily_r7insightops_agent_online_download_url: "https://s3.amazonaws.com/com.rapid7.razor.public/endpoint/agent/latest/linux/x86_64/agent_control_latest.sh"
+monitoringfamily_r7insightops_agent_download_details:
+  - {
+      dest: "/tmp/{{ monitoringfamily_install_file }}",
+      url: "{{ monitoringfamily_r7insightops_agent_online_download_url }}",
+      mode: '0755'
+    }
+monitoringfamily_r7insightops_agent_manual_install_details:
+  - {
+       execcmd: "./{{ monitoringfamily_install_file }} install_start  --config_path  {{ monitoringfamily_r7insightops_agent_directory }} --token {{ vault_rapid7insightops_agent_token }} ",
+       folder: "/tmp"
+    }
+monitoringfamily_r7insightops_dependent_packages:
+  - unzip
+monitoringfamily_r7insightops_create_directory_with_pem_details:
+  - {
+      path: "{{ monitoringfamily_r7insightops_agent_directory }}"
+  }
+monitoringfamily_nginx_ansiblevhost_accesslog: "/var/log/nginx/access.log"
+monitoringfamily_nginx_ansiblevhost_errorlog: "/var/log/nginx/error.log"
+monitoringfamily_r7insightops_agent_templating_details:
+  mainconfig:
+    dest: "{{ monitoringfamily_r7insightops_config_path }}/logging.json"
+    src: "rapid7_insightops/config.j2"
+    servername: "{{ inventory_hostname }}"
+    api_key: "{{ vault_rapid7insightops_apikey }}"
+    logentries:
+      appnginxaccess:
+        r7dest: "{{ global_var_insightops_log_set }}"
+        enabled: "true"
+        name: "Nginx_MainAccess_log"
+        path: "{{ monitoringfamily_nginx_ansiblevhost_accesslog }}"
+      appnginxerror:
+        r7dest: "{{ global_var_insightops_log_set }}"
+        enabled: "true"
+        name: "Nginx_MainError_log"
+        path: "{{ monitoringfamily_nginx_ansiblevhost_errorlog }}"

@@ -1,0 +1,82 @@
+---
+proxy_zwstanbic_vhost_file: "forward_zwstanbic.conf"
+zwstanbic_upstream_host1: "196.8.110.47:2056"
+zwstanbic_upstream_host1_mon_type: tcp
+zwstanbic_upstream_host1_mon_scheme: https
+zwstanbic_upstream_host2: "196.8.110.47:2057"
+zwstanbic_upstream_host2_mon_type: tcp
+zwstanbic_upstream_host2_mon_scheme: https
+zwstanbic_upstream_host3: "196.8.110.47:2058"
+zwstanbic_upstream_host3_mon_type: tcp
+zwstanbic_upstream_host3_mon_scheme: https
+zwstanbic_upstream_host4: "196.8.110.47:2059"
+zwstanbic_upstream_host4_mon_type: tcp
+zwstanbic_upstream_host4_mon_scheme: https
+webserverfamily_nginx_ppa_version_enable: true
+webserverfamily_nginx_enable: true
+webserverfamily_nginx_install_details:
+  - nginx
+  - nginx-extras
+webserverfamily_nginx_push_configfiles_details:
+  forward_zwstanbic:
+    src: "nginx/_generic_vhost.conf.j2"
+    dest: "/etc/nginx/sites-available/{{ proxy_zwstanbic_vhost_file }}"
+    owner: "root"
+    group: "root"
+    port: "{{ global_zwstanbic_nginx_port }}"
+    ssl_enabled: false
+    domain_names:
+      - "localhost"
+    logging_enabled: true
+    access_log_file: "/var/log/nginx/forward_zwstanbic_nginx_proxy_access.log"
+    access_format: "jsonlog"
+    error_log_file: "/var/log/nginx/forward_zwstanbic_nginx_proxy_error.log"
+    bodyinstructions:
+      - >
+        proxy_ssl_certificate
+        {{ global_var_billbox_ssl_folder_path }}/{{ global_var_billbox_ssl_cert }}
+      - >
+        proxy_ssl_certificate_key
+        {{ global_var_billbox_ssl_folder_path }}/{{ global_var_billbox_ssl_key }}
+    locations:
+      - context: "/test"
+        instructions:
+          - "access_log off"
+          - "return 200"
+      - context: "/notification"
+        instructions:
+          - "proxy_set_header X-Forwarded-For $server_addr"
+          - "proxy_pass {{ zwstanbic_upstream_host1_mon_scheme }}://{{ zwstanbic_upstream_host1 }}"
+      - context: "/account"
+        instructions:
+          - "proxy_set_header X-Forwarded-For $server_addr"
+          - "proxy_pass {{ zwstanbic_upstream_host2_mon_scheme }}://{{ zwstanbic_upstream_host2 }}"
+      - context: "/balance"
+        instructions:
+          - "proxy_set_header X-Forwarded-For $server_addr"
+          - "proxy_pass {{ zwstanbic_upstream_host3_mon_scheme }}://{{ zwstanbic_upstream_host3 }}"
+      - context: "/payment"
+        instructions:
+          - "proxy_set_header X-Forwarded-For $server_addr"
+          - "proxy_pass {{ zwstanbic_upstream_host4_mon_scheme }}://{{ zwstanbic_upstream_host4 }}"
+webserverfamily_nginx_deletefiles_details:
+  - "/etc/nginx/sites-enabled/default"
+webserverfamily_nginx_common_enable_sites_details_hash:
+  zwstanbic:
+    vhost: "{{ proxy_zwstanbic_vhost_file }}"
+webserverfamily_nginx_common_validation_enable: true
+webserverfamily_nginx_common_restart_enabled: true
+elasticbeats_configuration_details:
+  zwstanbic:
+      src: "monitor.yml.j2"
+      dest: "/etc/heartbeat/monitors.d/zwstanbic.yml"
+      type: "{{ zwstanbic_upstream_host1_mon_type }}"
+      name: "zwstanbic"
+      enabled: true
+      schedule: "@every 30s"
+      hosts: ["{{zwstanbic_upstream_host1}}","{{zwstanbic_upstream_host2}}","{{zwstanbic_upstream_host3}}","{{zwstanbic_upstream_host4}}"]
+elasticbeats_systemd_details: 
+  restart:
+      name: "heartbeat-elastic"
+      state: "restarted"
+elk_instance_name: "{{ hostvars[inventory_hostname]['ec2_placement'] }}"

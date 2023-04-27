@@ -1,0 +1,40 @@
+
+util_filesystem_enable: util
+util_filesystem_install_packages_direct_list:
+  - python-pip
+  - python3-pip
+util_filesystem_install_pip_package_list:
+  - boto
+  - boto3
+  - awscli
+aws_install_python_pip_enable: false
+aws_pip_install_boto_enable: false
+aws_install_awscli_enable: false
+aws_s3_enable: true
+aws_s3_pull_object_details:
+  mongoseedfile:
+    bucket: "{{ global_var_mongo_s3_bucket }}"
+    objpath: "{{ global_var_mongo_s3_seed_path }}/{{ global_var_mongo_seed_file }}"
+    dest_path: "/tmp/{{ global_var_mongo_seed_file }}"
+
+mongofamily_server_seed_enabled: true
+mongofamily_server_seed_unarchive_details:
+- {
+ src_filepath: "/tmp/{{ global_var_mongo_seed_file }}",
+ dest_filepath: "{{ global_var_mongo_dump_folder }}/core/{{ global_var_release_version }}"
+}
+# mongofamily_server_seed_drop_details:
+# - {
+#  target_dbname: "{{ vault_mongo_core_dbname }}",
+#  username: "{{ vault_mongo_root_username }}",
+#  password: "{{ vault_mongo_root_password }}",
+#  host: "localhost", 
+#  port: "{{ global_var_mongo_port }}"
+# }
+mongofamily_server_seed_dump_folder_details:
+- {
+ target_dbname: "{{ vault_mongo_core_dbname }}",
+ src_folder: "{{ global_var_mongo_dump_folder }}/core/{{ global_var_release_version }}",
+ username: "{{ vault_mongo_core_username }}",
+ password: "{{ vault_mongo_core_password }}"
+}

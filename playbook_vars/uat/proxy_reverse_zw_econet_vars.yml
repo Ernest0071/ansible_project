@@ -1,0 +1,39 @@
+---
+proxy_zweconet_vhost_file: "reverse_zweconet.conf"
+zweconet_upstream_host1: zw.slydepay.com/ussd
+zweconet_upstream_host1_mon_type: tcp
+zweconet_upstream_host1_mon_scheme: https
+webserverfamily_nginx_ppa_version_enable: true
+webserverfamily_nginx_enable: true
+webserverfamily_nginx_install_details:
+  - nginx
+  - nginx-extras
+webserverfamily_nginx_push_configfiles_details:
+  reverse_zweconet:
+    src: "nginx/_generic_vhost.conf.j2"
+    dest: "/etc/nginx/sites-available/{{ proxy_zweconet_vhost_file }}"
+    owner: "root"
+    group: "root"
+    port: "{{ global_zweconet_nginx_port }}"
+    ssl_enabled: false
+    domain_names:
+      - "localhost"
+    logging_enabled: true
+    access_log_file: "/var/log/nginx/forward_zweconet_nginx_proxy_access.log"
+    access_format: "jsonlog"
+    error_log_file: "/var/log/nginx/forward_zweconet_nginx_proxy_error.log"
+    locations:
+      - context: "/test"
+        instructions:
+          - "access_log off"
+          - "return 200"
+      - context: "/ussd/"
+        instructions:
+          - "proxy_pass {{ zweconet_upstream_host1_mon_scheme }}://{{ zweconet_upstream_host1 }}/"
+webserverfamily_nginx_deletefiles_details:
+  - "/etc/nginx/sites-enabled/default"
+webserverfamily_nginx_common_enable_sites_details_hash:
+  zweconet:
+    vhost: "{{ proxy_zweconet_vhost_file }}"
+webserverfamily_nginx_common_validation_enable: true
+webserverfamily_nginx_common_restart_enabled: true

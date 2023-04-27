@@ -1,0 +1,66 @@
+# jumpbox_mysql_drop_database_details:
+# - {
+#  root_username: "{{ vault_main_rds_root_username }}",
+#  root_password: "{{ vault_main_rds_root_password }}",
+#  db_name: "{{ vault_main_rds_app_dbname }}",
+#  db_host: "{{ groups['main_mysql_target_helper'][0] }}",
+#  db_port: "{{ global_var_mysql_port }}"
+# }
+
+jumpbox_mysql_create_database_details:
+# - {
+#   root_username: "{{ vault_mysql_root_username }}",
+#   root_password: "{{ vault_mysql_root_password }}",
+#   db_name: "{{ vault_mysql_cardhandler_dbname }}",
+#   db_host: "{{ groups[main_mysql_target_helper][0] }}",
+#   db_port: "{{ global_var_mysql_port }}"
+# }
+# - {
+#   root_username: "{{ vault_mysql_root_username }}",
+#   root_password: "{{ vault_mysql_root_password }}",
+#   db_name: "{{ vault_mysql_metabase_dbname }}",
+#   db_host: "{{ groups[main_mysql_target_helper][0] }}",
+#   db_port: "{{ global_var_mysql_port }}"
+# }
+# - {
+#   root_username: "{{ vault_mysql_root_username }}",
+#   root_password: "{{ vault_mysql_root_password }}",
+#   db_name: "{{ vault_mysql_scheduler_dbname }}",
+#   db_host: "{{ groups[main_mysql_target_helper][0] }}",
+#   db_port: "{{ global_var_mysql_port }}"
+# }
+# - {
+#   root_username: "{{ vault_mysql_root_username }}",
+#   root_password: "{{ vault_mysql_root_password }}",
+#   db_name: "{{ vault_mysql_template_dbname }}",
+#   db_host: "{{ groups[main_mysql_target_helper][0] }}",
+#   db_port: "{{ global_var_mysql_port }}"
+# }
+- {
+  root_username: "{{ vault_rds_root_username }}",
+  root_password: "{{ vault_rds_root_password }}",
+  db_name: "{{ vault_rds_carddb_database }}",
+  db_host: "{{ hostvars[main_rds_target_helper].endpoint }}",
+  db_port: "{{ global_var_mysql_port }}"
+}
+- {
+  root_username: "{{ vault_rds_root_username }}",
+  root_password: "{{ vault_rds_root_password }}",
+  db_name: "{{ vault_rds_scheduler_dbname }}",
+  db_host: "{{ hostvars[main_rds_target_helper].endpoint }}",
+  db_port: "{{ global_var_mysql_port }}"
+}
+- {
+  root_username: "{{ vault_rds_root_username }}",
+  root_password: "{{ vault_rds_root_password }}",
+  db_name: "{{ vault_rds_template_dbname }}",
+  db_host: "{{ hostvars[main_rds_target_helper].endpoint }}",
+  db_port: "{{ global_var_mysql_port }}"
+}
+- {
+  root_username: "{{ vault_rds_root_username }}",
+  root_password: "{{ vault_rds_root_password }}",
+  db_name: "{{ vault_rds_metabase_dbname }}",
+  db_host: "{{ hostvars[main_rds_target_helper].endpoint }}",
+  db_port: "{{ global_var_mysql_port }}"
+}

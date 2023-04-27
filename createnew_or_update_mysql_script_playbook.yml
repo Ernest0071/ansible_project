@@ -1,0 +1,35 @@
+---
+- import_playbook: fact_gatherer_playbook.yml
+  tags:
+  - facts
+
+- hosts: "tag_Name_{{ global_var_country_code }}_{{ global_var_product }}_{{ global_var_environment }}_jumpbox"
+  become: True
+  gather_facts: true
+  user: "{{ global_var_ubuntu_user }}"
+  vars_files:
+  - "playbook_vars/{{ global_var_environment }}/script_mysql_vars.yml"
+  - "playbook_vars/{{ global_var_environment }}/vault/{{ global_var_environment }}_variables.vault"
+  - "playbook_vars/{{ global_var_environment }}/global_vars.yml"
+  tasks:
+
+    - name: Copy file with owner and permissions
+      copy:
+        src: "{{ item.db_file_source }}"
+        dest: "{{ item.db_file_target }}"
+        mode: '0644'
+      with_items: "{{ jumpbox_mysql_execute_script_details | default({}) }}"
+      when: jumpbox_mysql_execute_script_details is defined
+
+    - name: Importing data into databases
+      mysql_db:
+        name: "{{ item.db_name }}"
+        state: import
+        login_user: "{{ item.app_username }}"
+        login_password: "{{ item.app_password }}"
+        login_host: "{{ item.db_host }}"
+        login_port: "{{ item.db_port }}"
+        target: "{{ item.db_file_target }}"
+      with_items: "{{ jumpbox_mysql_execute_script_details | default({}) }}"
+      when: jumpbox_mysql_execute_script_details is defined
+      # no_log: true

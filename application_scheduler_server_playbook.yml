@@ -1,0 +1,316 @@
+- import_playbook: fact_gatherer_playbook.yml
+  tags:
+    - facts
+
+- hosts: localhost
+  connection: local
+  gather_facts: yes
+  vars_files:
+    - playbook_vars/{{ global_var_environment }}/global_vars.yml
+    - playbook_vars/{{ global_var_environment }}/application_scheduler_vars.yml
+    - playbook_vars/{{ global_var_environment }}/vault/{{ global_var_environment }}_variables.vault
+  tasks:
+    - name: Billbox Scheduler || Extracting ARN from service discovery
+      set_fact:
+        reg_schedulerserver_sd_dns_details: "{{ ServiceListJson | json_query(\"Services[?Name=='\" + global_var_services_details.schedulerserver.name+\"']\") }}"
+
+    - name: Billbox Scheduler || Creating ECS Cluster
+      ecs_cluster:
+        name: "{{ global_var_ecs_clustername }}"
+        state: present
+        region: "{{ global_var_ecs_region }}"
+      when: global_var_ecs_clustername is defined 
+
+    - name: Billbox Scheduler || Clearing Checking Folder
+      file:
+          path: "{{ global_var_configuration_git_dir }}"
+          state: absent
+      ignore_errors: true
+
+    - name: Billbox Scheduler || Creating billbox configuration git directory
+      file:
+        path: "{{ item.path }}" 
+        recurse: yes 
+        state: directory
+        # owner: "{{ ansible_user }}"
+        mode: "{{ item.mode | default('0755') }}" 
+      when: global_var_configuration_git_create_folders_details is defined
+      with_items: "{{ global_var_configuration_git_create_folders_details | default({}) }}"
+      
+
+    - name: Billbox Scheduler || Checking out the properties files
+      git:
+        repo: "{{ item.repo }}"
+        dest: "{{ item.dir }}"
+        version: "{{ item.version }}"
+        force: yes
+      when: global_var_configuration_git_details is defined
+      with_items: "{{ global_var_configuration_git_details }}"
+
+
+    - name: Billbox Scheduler || Encryption scheduler Mongo URI
+      shell: "{{ spring_cloud_cli_path | default('') }}spring encrypt 'mongodb://{{ vault_mongo_core_username }}:{{ vault_mongo_core_password }}@{{ hostvars.localhost.reg_mongo_cluster_uri }}/{{ vault_mongo_core_dbname }}' --key {{ vault_configserver_encryption_key }}"
+      register: reg_bb_scheduler_mongo_uri
+      environment:
+        JAVA_HOME: "{{ java_home_path | default(lookup('env', 'JAVA_HOME')) }}"      
+
+    - name: Billbox Scheduler || Encryption scheduler Mongo DBname
+      shell: "{{ spring_cloud_cli_path | default('') }}spring encrypt '{{ vault_mongo_core_dbname }}' --key {{ vault_configserver_encryption_key }}"
+      register: reg_bb_scheduler_mongo_dbname
+      environment:
+        JAVA_HOME: "{{ java_home_path | default(lookup('env', 'JAVA_HOME')) }}"  
+
+    - name: Billbox Scheduler || Encryption scheduler Client API Username
+      shell: "{{ spring_cloud_cli_path | default('') }}spring encrypt '{{ vault_api_scheduler_username }}' --key {{ vault_configserver_encryption_key }}"
+      register: reg_bb_scheduler_client_username
+      environment:
+        JAVA_HOME: "{{ java_home_path | default(lookup('env', 'JAVA_HOME')) }}"      
+
+    - name: Billbox Scheduler || Encryption scheduler Client API Password
+      shell: "{{ spring_cloud_cli_path | default('') }}spring encrypt '{{ vault_api_scheduler_password }}' --key {{ vault_configserver_encryption_key }}"
+      register: reg_bb_scheduler_client_password
+      environment:
+        JAVA_HOME: "{{ java_home_path | default(lookup('env', 'JAVA_HOME')) }}"  
+
+    - name: Billbox Scheduler || Encryption Scheduler Mysql jdbc URI
+      shell: "{{ spring_cloud_cli_path | default('') }}spring encrypt 'jdbc:mysql://{{ hostvars[main_rds_target_helper].endpoint }}:{{ global_var_mysql_port }}/{{ vault_rds_scheduler_dbname }}?zeroDateTimeBehavior=ROUND&useSSL=false&failOverReadOnly=false&autoReconnect=true' --key {{ vault_configserver_encryption_key }}"
+      register: reg_bb_scheduler_mysql_jdbc_uri
+      environment:
+        JAVA_HOME: "{{ java_home_path | default(lookup('env', 'JAVA_HOME')) }}"  
+
+    - name: Billbox Scheduler || Encryption scheduler Mysql username
+      shell: "{{ spring_cloud_cli_path | default('') }}spring encrypt '{{ vault_rds_scheduler_username }}' --key {{ vault_configserver_encryption_key }}"
+      register: reg_bb_scheduler_mysql_jdbc_username
+      environment:
+        JAVA_HOME: "{{ java_home_path | default(lookup('env', 'JAVA_HOME')) }}"  
+
+    - name: Billbox Scheduler || Encryption scheduler Jdbc Password
+      shell: "{{ spring_cloud_cli_path | default('') }}spring encrypt '{{ vault_rds_scheduler_password }}' --key {{ vault_configserver_encryption_key }}"
+      register: reg_bb_scheduler_mysql_jdbc_password
+      environment:
+        JAVA_HOME: "{{ java_home_path | default(lookup('env', 'JAVA_HOME')) }}"  
+
+    - name: Billbox Scheduler || Setting Encrypted scheduler credential facts
+      set_fact:
+        reg_bb_scheduler_mongo_uri: "{{ reg_bb_scheduler_mongo_uri.stdout }}"
+        reg_bb_scheduler_mongo_dbname: "{{ reg_bb_scheduler_mongo_dbname.stdout }}"
+        reg_bb_scheduler_client_username: "{{ reg_bb_scheduler_client_username.stdout }}"
+        reg_bb_scheduler_client_password: "{{ reg_bb_scheduler_client_password.stdout }}"
+        reg_bb_scheduler_mysql_jdbc_uri: "{{ reg_bb_scheduler_mysql_jdbc_uri.stdout }}"
+        reg_bb_scheduler_mysql_jdbc_username: "{{ reg_bb_scheduler_mysql_jdbc_username.stdout }}"
+        reg_bb_scheduler_mysql_jdbc_password: "{{ reg_bb_scheduler_mysql_jdbc_password.stdout }}"
+
+    - name: Billbox Scheduler || Creating scheduler config file
+      template: 
+        dest: "{{ global_var_configuration_git_dir }}/{{global_var_configserver_folder}}/{{ global_var_services_details.schedulerserver.config_name }}-{{ global_var_environment }}.properties"
+        src: "templates/{{ global_var_services_details.schedulerserver.config_name }}.properties" 
+
+
+    - name: Billbox Scheduler || Creating scheduler quartz config file
+      template: 
+        dest: "{{ global_var_configuration_git_dir }}/{{global_var_configserver_folder}}/{{ global_var_services_details.schedulerserver.config_name }}-quartz-{{ global_var_environment }}.properties"
+        src: "templates/{{ global_var_services_details.schedulerserver.config_name }}-quartz.properties" 
+
+
+      # when: zw_slydepay_configserver_scheduler_mysql is defined
+      # "mongodb://{{ vault_mongo_app_username }}:{{ vault_mongo_app_password }}@{{ hostvars.localhost.reg_mongo_cluster_uri }}/{{ vault_mongo_app_dbname }}"
+      #jdbcUrl: "jdbc:mysql://{{ hostvars.localhost.reg_db_uri_and_port }}/{{ vault_main_rds_app_dbname }}?zeroDateTimeBehavior=ROUND&useSSL=false&failOverReadOnly=false"
+
+    - name: Billbox Scheduler ||  Creating Parameter Store secrets 
+      aws_ssm_parameter_store:
+        name: "{{ item.value.id }}"
+        decryption: true 
+        region: "{{ global_var_ird_region }}"
+        string_type: "SecureString"
+        value: "{{ item.value.content }}"
+        state: "{{ item.value.state | default('present')}}"
+        overwrite_value: always # not required. choices: never;changed;always. Option to overwrite an existing value if it already exists.,String
+        description: "bb param store"
+      with_dict: "{{ bb_scheduler_server_task_container_secretenv_definition }}"
+      no_log: true
+      
+    - name: Billbox Scheduler || Creating schedulerServer task definition
+      ecs_taskdefinition:
+        state: present 
+        family: "{{ bb_scheduler_server_task_family_name }}"
+        region: "{{ global_var_ecs_region }}"
+        execution_role_arn: "{{ bb_scheduler_server_task_executionRoleArn }}" 
+        network_mode: "{{ bb_scheduler_server_task_networkmode }}"
+        launch_type: "{{ bb_scheduler_server_task_ecsmode }}"
+        cpu: "{{ bb_scheduler_server_task_cpu }}"
+        memory: "{{ bb_scheduler_server_task_memory }}"
+        force_create: yes
+        containers: 
+        - name: "{{ global_var_services_details.schedulerserver.name }}"
+          image: "{{ bb_scheduler_server_task_container_image }}"
+          cpu: "{{ bb_scheduler_server_task_container_cpu }}"
+          memory: "{{ bb_scheduler_server_task_container_memory }}"
+          # memoryReservation: "{{ bb_scheduler_server_task_container_memoryReservation }}"
+          repositoryCredentials:
+            credentialsParameter: "{{ bb_scheduler_server_task_container_credentials_parameter }}"
+          portMappings:
+          - containerPort: "{{ global_var_services_details.schedulerserver.containerPort }}"
+            hostPort: "{{ global_var_services_details.schedulerserver.hostPort }}"
+          essential: "{{ bb_scheduler_server_task_container_essential }}"
+          environment: "{{ bb_scheduler_server_task_container_env }}"
+          logConfiguration:
+            logDriver: "{{ bb_scheduler_server_task_container_log_driver }}"
+            options:
+              awslogs-group: "{{ bb_scheduler_server_task_container_log_logsgroup }}"
+              awslogs-region: "{{ bb_scheduler_server_task_container_log_logsregion }}" 
+              awslogs-stream-prefix: "{{ bb_scheduler_server_task_container_log_logsprefix }}"
+
+        - name: "{{ global_var_services_details.monitoringserver.name }}"
+          image: "{{ global_var_services_details.monitoringserver.image }}"
+          essential: false
+          secrets: "{{ bb_scheduler_server_task_container_mon_secretenv }}"
+          environment: "{{ bb_scheduler_server_task_container_mon_env }}"
+      register: reg_scheduler_servertaskdef 
+
+    - name: Billbox Scheduler || Staging git changes
+      shell: >
+          git add *
+      args:
+        chdir: "{{ global_var_configuration_git_dir }}"
+      ignore_errors: true
+
+
+    - name: Billbox Scheduler || Committing git repository
+      shell: >
+          git commit 
+          -m 'committing new tasks {{ global_var_services_details.schedulerserver.name }}
+          and cardhandler specific variable concens'
+      args:
+        chdir: "{{ global_var_configuration_git_dir }}"
+      ignore_errors: true
+
+    - name: Billbox Scheduler || Pushing cardhandler changes to remote
+      shell: >
+          git push
+      args:
+        chdir: "{{ global_var_configuration_git_dir }}"
+      ignore_errors: true
+
+    - name: Billbox Scheduler || Creating or Updating the ECS service schedulerserver
+      ecs_service:
+        state: present 
+        name: "{{ bb_scheduler_service_name }}"
+        service_registries:
+          - registryArn: "{{ hostvars.localhost.reg_schedulerserver_sd_dns_details.0.Arn }}"
+        network_configuration:
+            assign_public_ip: no
+            security_groups: "{{ hostvars.localhost.reg_app_secgroup_ids_facts | list }}"
+            subnets: "{{ hostvars.localhost.reg_private_app_subnet_ids_facts | list }}"
+        desired_count: "{{ bb_scheduler_service_count }}"
+        cluster: "{{ global_var_ecs_clustername }}"
+        task_definition: "{{ bb_scheduler_server_task_family_name }}:{{ reg_scheduler_servertaskdef.taskdefinition.revision }}"
+        region: "{{ global_var_ecs_region }}"
+        launch_type: "{{ bb_scheduler_server_task_ecsmode }}"
+        # load_balancers:
+        #   - targetGroupArn: "{{ reg_scheduler_targetgroup.target_group_arn }}"
+        #     # containerName: "{{ global_var_services_details.schedulerserver.name }}"
+        #     # containerPort: "{{ global_var_services_details.schedulerserver.hostPort }}"
+        #     containerName: "{{ global_var_services_details.corenginxserver.name }}"
+        #     containerPort: "{{ global_var_services_details.corenginxserver.hostPort }}"
+        # health_check_grace_period_seconds: "{{ bb_scheduler_service_hc_graceperiod }}"
+
+    - name: Billbox Scheduler || Creating scheduler MEM Scalling Policy for {{ global_var_environment }}
+      aws_application_scaling_policy:
+        state: present
+        policy_name: "{{ bb_scheduler_service_mem_autoscalling_policy_name }}"
+        service_namespace: ecs
+        region: "{{ global_var_ecs_region }}"
+        resource_id: service/{{ global_var_ecs_clustername }}/{{ bb_scheduler_service_name }}
+        scalable_dimension: ecs:service:DesiredCount
+        policy_type: "{{ bb_scheduler_service_autoscalling_policy_type }}"
+        minimum_tasks: "{{ bb_scheduler_service_autoscalling_min_task }}"
+        maximum_tasks: "{{ bb_scheduler_service_autoscalling_max_task }}"
+        target_tracking_scaling_policy_configuration:
+          TargetValue: "{{ bb_scheduler_service_mem_autoscalling_tracking_scaling_target_value }}"
+          PredefinedMetricSpecification:
+            PredefinedMetricType: "{{ bb_scheduler_service_mem_autoscalling_tracking_scaling_metric_spec }}"
+          ScaleOutCooldown: "{{ bb_scheduler_service_mem_autoscalling_tracking_scalout_cooldown }}"
+          ScaleInCooldown: "{{ bb_scheduler_service_mem_autoscalling_tracking_scalin_cooldown }}"
+
+    - name: Billbox Scheduler || Creating scheduler CPU Scalling Policy for {{ global_var_environment }}
+      aws_application_scaling_policy:
+        state: present
+        policy_name: "{{ bb_scheduler_service_cpu_autoscalling_policy_name }}"
+        service_namespace: ecs
+        region: "{{ global_var_ecs_region }}"
+        resource_id: service/{{ global_var_ecs_clustername }}/{{ bb_scheduler_service_name }}
+        scalable_dimension: ecs:service:DesiredCount
+        policy_type: "{{ bb_scheduler_service_autoscalling_policy_type }}"
+        minimum_tasks: "{{ bb_scheduler_service_autoscalling_min_task }}"
+        maximum_tasks: "{{ bb_scheduler_service_autoscalling_max_task }}"
+        target_tracking_scaling_policy_configuration:
+          TargetValue: "{{ bb_scheduler_service_cpu_autoscalling_tracking_scaling_target_value }}"
+          PredefinedMetricSpecification:
+            PredefinedMetricType: "{{ bb_scheduler_service_cpu_autoscalling_tracking_scaling_metric_spec }}"
+          ScaleOutCooldown: "{{ bb_scheduler_service_cpu_autoscalling_tracking_scalout_cooldown }}"
+          ScaleInCooldown: "{{ bb_scheduler_service_cpu_autoscalling_tracking_scalin_cooldown }}"
+
+
+    # - name: Billbox Scheduler || Creating a Sleep Time scheduled application autoscalling for Billbox Scheduler
+    #   shell: > 
+    #       aws application-autoscaling put-scheduled-action --service-namespace ecs
+    #       --scalable-dimension ecs:service:DesiredCount
+    #       --resource-id service/{{ global_var_ecs_clustername }}/{{ bb_scheduler_service_name }}
+    #       --scheduled-action-name scheduled-gh-office-{{ bb_scheduler_service_name }}-off-time
+    #       --schedule "cron({{ bb_scheduler_service_sleep_cron | default('00 20 ? * MON-FRI *') }})"
+    #       --scalable-target-action MinCapacity={{ bb_scheduler_service_scheduled_sleep_autoscalling_min_task | default(0) }},MaxCapacity={{ bb_scheduler_service_scheduled_sleep_autoscalling_max_task | default(0) }}
+    #       --region {{ global_var_ecs_region }}
+    #       --profile {{ lookup('env','AWS_PROFILE') }}
+    #   when:
+    #     - global_awx_ad_hoc_shell_switch is defined
+    #     - not global_awx_ad_hoc_shell_switch
+    #     - bb_scheduler_service_scheduled_autoscalling | default(false)    
+
+    # - name: Billbox Scheduler Server || Creating a Sleep Time scheduled application autoscalling for Billbox Scheduler with awscli
+    #   shell: > 
+    #       aws application-autoscaling put-scheduled-action --service-namespace ecs
+    #       --scalable-dimension ecs:service:DesiredCount
+    #       --resource-id service/{{ global_var_ecs_clustername }}/{{ bb_scheduler_service_name }}
+    #       --scheduled-action-name scheduled-gh-office-{{ bb_scheduler_service_name }}-off-time
+    #       --schedule "cron({{ bb_scheduler_service_sleep_cron | default('00 20 ? * MON-FRI *') }})"
+    #       --scalable-target-action MinCapacity={{ bb_scheduler_service_scheduled_sleep_autoscalling_min_task | default(0) }},MaxCapacity={{ bb_scheduler_service_scheduled_sleep_autoscalling_max_task | default(0) }}
+    #       --region {{ global_var_ecs_region }}
+    #   when:
+    #     - global_awx_ad_hoc_shell_switch is defined
+    #     - global_awx_ad_hoc_shell_switch
+    #     - bb_scheduler_service_scheduled_autoscalling | default(false)
+    #   environment:
+    #     AWS_ACCESS_KEY_ID: "{{ vault_aws_access_key }}"
+    #     AWS_SECRET_ACCESS_KEY: "{{ vault_aws_access_secret }}" 
+
+    # - name: Billbox Scheduler || Creating a Wake Time scheduled application autoscalling for Billbox Scheduler
+    #   shell: > 
+    #       aws application-autoscaling put-scheduled-action --service-namespace ecs
+    #       --scalable-dimension ecs:service:DesiredCount
+    #       --resource-id service/{{ global_var_ecs_clustername }}/{{ bb_scheduler_service_name }}
+    #       --scheduled-action-name scheduled-gh-office-{{ bb_scheduler_service_name }}-wake-time
+    #       --schedule "cron({{ bb_scheduler_service_wake_cron | default('00 08 ? * MON-FRI *') }})"
+    #       --scalable-target-action MinCapacity={{ bb_scheduler_service_scheduled_wake_autoscalling_min_task | default(1) }},MaxCapacity={{ bb_scheduler_service_scheduled_wake_autoscalling_max_task | default(1) }}
+    #       --region {{ global_var_ecs_region }}
+    #       --profile {{ lookup('env','AWS_PROFILE') }}
+    #   when:
+    #     - global_awx_ad_hoc_shell_switch is defined
+    #     - not global_awx_ad_hoc_shell_switch
+    #     - bb_scheduler_service_scheduled_autoscalling | default(false)    
+
+    # - name: Billbox Scheduler Server || Creating a Wake Time scheduled application autoscalling for Billbox Scheduler with awscli
+    #   shell: > 
+    #       aws application-autoscaling put-scheduled-action --service-namespace ecs
+    #       --scalable-dimension ecs:service:DesiredCount
+    #       --resource-id service/{{ global_var_ecs_clustername }}/{{ bb_scheduler_service_name }}
+    #       --scheduled-action-name scheduled-gh-office-{{ bb_scheduler_service_name }}-wake-time
+    #       --schedule "cron({{ bb_scheduler_service_wake_cron | default('00 08 ? * MON-FRI *') }})"
+    #       --scalable-target-action MinCapacity={{ bb_scheduler_service_scheduled_wake_autoscalling_min_task | default(1) }},MaxCapacity={{ bb_scheduler_service_scheduled_wake_autoscalling_max_task | default(1) }}
+    #       --region {{ global_var_ecs_region }}
+    #   when:
+    #     - global_awx_ad_hoc_shell_switch is defined
+    #     - global_awx_ad_hoc_shell_switch
+    #     - bb_scheduler_service_scheduled_autoscalling | default(false)
+    #   environment:
+    #     AWS_ACCESS_KEY_ID: "{{ vault_aws_access_key }}"
+    #     AWS_SECRET_ACCESS_KEY: "{{ vault_aws_access_secret }}" 

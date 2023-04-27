@@ -1,0 +1,22 @@
+jumpbox_mysql_create_database_details:
+- {
+  root_username: "{{ vault_rds_root_username }}",
+  root_password: "{{ vault_rds_root_password }}",
+  db_name: "{{ vault_rds_carddb_database }}",
+  db_host: "{{ hostvars[main_rds_target_helper].endpoint }}",
+  db_port: "{{ global_var_mysql_port }}"
+}
+- {
+  root_username: "{{ vault_rds_root_username }}",
+  root_password: "{{ vault_rds_root_password }}",
+  db_name: "{{ vault_rds_scheduler_dbname }}",
+  db_host: "{{ hostvars[main_rds_target_helper].endpoint }}",
+  db_port: "{{ global_var_mysql_port }}"
+}
+- {
+  root_username: "{{ vault_rds_root_username }}",
+  root_password: "{{ vault_rds_root_password }}",
+  db_name: "{{ vault_rds_template_dbname }}",
+  db_host: "{{ hostvars[main_rds_target_helper].endpoint }}",
+  db_port: "{{ global_var_mysql_port }}"
+}

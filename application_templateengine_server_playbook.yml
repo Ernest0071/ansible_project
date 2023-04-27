@@ -1,0 +1,308 @@
+---
+- import_playbook: fact_gatherer_playbook.yml
+  tags:
+    - facts
+- import_playbook: aws_service_discovery_route53_playbook.yml
+  tags:
+    - facts
+
+
+- hosts: localhost
+  connection: local
+  gather_facts: true
+  vars_files:
+    - "playbook_vars/{{ global_var_environment }}/application_templateengine_server_vars.yml"
+    - "playbook_vars/{{ global_var_environment }}/vault/{{ global_var_environment }}_variables.vault"
+    - "playbook_vars/{{ global_var_environment }}/global_vars.yml"
+  tasks:
+
+    - name: TemplateEngine || Extracting ARN from service discovery
+      set_fact:
+        reg_templateengine_sd_dns_details: "{{ ServiceListJson | json_query(\"Services[?Name=='\" + global_var_services_details.templateengineserver.name+\"']\") }}"
+
+    - name: TemplateEngine || Clearing Checking Folder
+      file:
+          path: "{{ global_var_configuration_git_dir }}"
+          state: absent
+      ignore_errors: true
+
+    - name: TemplateEngine || Creating billbox configuration git directory
+      file:
+        path: "{{ item.path }}" 
+        recurse: true 
+        state: directory
+        # owner: "{{ ansible_user }}"
+        mode: "{{ item.mode | default('0755') }}" 
+      when: global_var_configuration_git_create_folders_details is defined
+      with_items: "{{ global_var_configuration_git_create_folders_details | default({}) }}"
+
+    - name: Checking out the properties files
+      git:
+        repo: "{{ item.repo }}"
+        dest: "{{ item.dir }}"
+        version: "{{ item.version }}"
+        force: true
+      when: global_var_configuration_git_details is defined
+      with_items: "{{ global_var_configuration_git_details }}" 
+
+    - name: TemplateEngine || Encryption templateengine MySQL URI
+      shell: "{{ spring_cloud_cli_path | default('') }}spring encrypt 'jdbc:mysql://{{ hostvars[main_rds_target_helper].endpoint }}:{{ global_var_mysql_port }}/{{ vault_rds_template_dbname }}?zeroDateTimeBehavior=ROUND&useSSL=false&failOverReadOnly=false' --key {{ vault_configserver_encryption_key }}"
+      register: reg_templateengine_mysql_uri
+      environment:
+        JAVA_HOME: "{{ java_home_path | default(lookup('env', 'JAVA_HOME')) }}"
+
+    - name: TemplateEngine || Encryption templateengine MySQL username
+      shell: "{{ spring_cloud_cli_path | default('') }}spring encrypt '{{ vault_rds_template_username }}' --key {{ vault_configserver_encryption_key }}"
+      register: reg_templateengine_mysql_username
+      environment:
+        JAVA_HOME: "{{ java_home_path | default(lookup('env', 'JAVA_HOME')) }}"
+
+    - name: TemplateEngine || Encryption templateengine MySQL password
+      shell: "{{ spring_cloud_cli_path | default('') }}spring encrypt '{{ vault_rds_template_password }}' --key {{ vault_configserver_encryption_key }}"
+      register: reg_templateengine_mysql_password
+      environment:
+        JAVA_HOME: "{{ java_home_path | default(lookup('env', 'JAVA_HOME')) }}"
+
+    - name: TemplateEngine || Setting Encrypted templateengine credential facts
+      set_fact:
+        reg_templateengine_mysql_uri: "{{ reg_templateengine_mysql_uri.stdout }}"
+        reg_templateengine_mysql_username: "{{ reg_templateengine_mysql_username.stdout }}"
+        reg_templateengine_mysql_password: "{{ reg_templateengine_mysql_password.stdout }}"
+
+    - name: TemplateEngine || Creating  templateengine config file
+      template:
+        dest: "{{ global_var_configuration_git_dir }}/{{global_var_configserver_folder}}/{{ global_var_services_details.templateengineserver.config_name }}-{{ global_var_environment }}.properties"
+        src: "templates/{{ global_var_services_details.templateengineserver.config_name }}.properties"
+      # when: zw_slydepay_templateengineserver_templateengine is defined
+
+
+    - name: TemplateEngine || Creating Parameter Store secrets for templateengineserver
+      aws_ssm_parameter_store:
+        name: "{{ item.value.id }}"
+        decryption: true 
+        region: "{{ bb_active_region }}"
+        string_type: "{{ item.value.stringtype | default('SecureString')}}"
+        value: "{{ item.value.content }}"
+        state: "{{ item.value.state | default('present')}}"
+        overwrite_value: always
+        description: "{{ item.value.description | default('Parameter store for config_server') }}"
+      with_dict: "{{ bb_templateengine_server_task_container_secretenv_definition }}"
+      register: reg_templateengine_param_store
+      no_log: true
+
+    - name: TemplateEngine || Creating templateengine task definition
+      ecs_taskdefinition:
+        state: present 
+        family: "{{ bb_templateengine_server_task_family_name }}"
+        region: "{{ bb_active_region }}"
+        execution_role_arn: "{{ bb_templateengine_server_task_executionRoleArn }}" 
+        network_mode: "{{ bb_templateengine_server_task_networkmode }}"
+        launch_type: "{{ bb_templateengine_server_task_ecsmode }}"
+        cpu: "{{ bb_templateengine_server_task_cpu }}"
+        memory: "{{ bb_templateengine_server_task_memory }}"
+        force_create: true
+        containers:
+        # - name: "envoy-proxy"
+        #   image: "{{ global_var_services_details.envoyproxyserver.image }}"
+
+        # - name: "datadog-agent"
+        #   image: "datadog/agent:latest"
+        #   essential: true
+        #   secrets: "{{ bb_templateengine_server_task_container_secretenv }}"
+        #   environment: "{{ bb_templateengine_server_task_container_datadog }}"
+        - name: "{{ bb_templateengine_service_monitoringserver_name }}"
+          image: "{{ bb_templateengine_service_monitoringserver_image }}"
+          essential: false
+          secrets: "{{ bb_templateengine_server_task_container_secretenv }}"
+          environment: "{{ bb_templateengine_server_task_container_datadog }}"
+
+        - name: "{{ global_var_services_details.templateengineserver.name }}"
+          image: "{{ bb_templateengine_server_task_container_image }}"
+          cpu: "{{ bb_templateengine_server_task_container_cpu }}"
+          memory: "{{ bb_templateengine_server_task_container_memory }}"
+          # memoryReservation: "{{ bb_templateengine_server_task_container_memoryReservation }}"
+          repositoryCredentials:
+            credentialsParameter: "{{ bb_templateengine_server_task_container_credentials_parameter }}"
+          portMappings:
+          - containerPort: "{{ global_var_services_details.templateengineserver.containerPort }}"
+            hostPort: "{{ global_var_services_details.templateengineserver.hostPort }}"
+          environment: "{{ bb_templateengine_server_task_container_env }}"
+          logConfiguration:
+            logDriver: "{{ bb_templateengine_server_task_container_log_driver }}"
+            options:
+              awslogs-group: "{{ bb_templateengine_server_task_container_log_logsgroup }}"
+              awslogs-region: "{{ bb_templateengine_server_task_container_log_logsregion }}" 
+              awslogs-stream-prefix: "{{ bb_templateengine_server_task_container_log_logsprefix }}"
+      register: reg_templateengine_servertaskdef
+
+    - name: TemplateEngine || Staging git changes
+      shell: >
+          git add *
+      args:
+        chdir: "{{ global_var_configuration_git_dir }}"
+      ignore_errors: true
+
+
+    - name: TemplateEngine || Committing git repository
+      shell: >
+          git commit
+          -m 'committing new tasks {{ global_var_services_details.templateengineserver.name }}:{{ reg_templateengine_servertaskdef.taskdefinition.revision }}
+          and templateengine specific variable concens'
+      args:
+        chdir: "{{ global_var_configuration_git_dir }}"
+      ignore_errors: true
+
+    - name: TemplateEngine || Pushing templateengine changes to remote
+      shell: >
+          git push
+      args:
+        chdir: "{{ global_var_configuration_git_dir }}"
+      ignore_errors: true
+
+    - name: TemplateEngine || Obtaining Service facts
+      ecs_service_info:
+        service: "{{ bb_templateengine_service_name }}"
+        region: "{{ bb_active_region }}"
+        cluster: "{{ global_var_ecs_clustername }}"
+        details: false
+      register: reg_templateengine_service_facts
+
+    
+    - name: TemplateEngine || Creating or Updating the ECS service templateengineserver
+      ecs_service:
+        state: present
+        name: "{{ bb_templateengine_service_name }}"
+        service_registries:
+          - registryArn: "{{ hostvars.localhost.reg_templateengine_sd_dns_details.0.Arn }}"
+        network_configuration:
+            assign_public_ip: false
+            security_groups: "{{ hostvars.localhost.reg_app_secgroup_ids_facts | list }}"
+            subnets: "{{ hostvars.localhost.reg_private_app_subnet_ids_facts | list }}"
+        desired_count: "{{ bb_templateengine_service_count }}"
+        cluster: "{{ global_var_ecs_clustername }}"
+        task_definition: "{{ bb_templateengine_server_task_family_name }}:{{ reg_templateengine_servertaskdef.taskdefinition.revision }}"
+        region: "{{ bb_active_region }}"
+        launch_type: "{{ bb_templateengine_server_task_ecsmode }}"
+      when: not bb_templateengine_service_awscli_enabled
+
+
+    # - name: TemplateEngine || Creating Template Engine Scalling Policy for {{ global_var_environment }} 
+    #   aws_application_scaling_policy:
+    #     state: present
+    #     policy_name: "{{ bb_templateengine_service_autoscalling_policy_name }}"
+    #     service_namespace: ecs
+    #     region: "{{ bb_active_region }}"
+    #     resource_id: service/{{ global_var_ecs_clustername }}/{{ bb_templateengine_service_name }}
+    #     scalable_dimension: ecs:service:DesiredCount
+    #     policy_type: "{{ bb_templateengine_service_autoscalling_policy_type }}"
+    #     minimum_tasks: "{{ bb_templateengine_service_autoscalling_min_task }}"
+    #     maximum_tasks: "{{ bb_templateengine_service_autoscalling_max_task }}"
+    #     target_tracking_scaling_policy_configuration:
+    #       TargetValue: "{{ bb_templateengine_service_autoscalling_tracking_scaling_target_value }}"
+    #       PredefinedMetricSpecification:
+    #         PredefinedMetricType: "{{ bb_templateengine_service_autoscalling_tracking_scaling_metric_spec }}"
+    #       ScaleOutCooldown: "{{ bb_templateengine_service_autoscalling_tracking_scalout_cooldown }}"
+    #       ScaleInCooldown: "{{ bb_templateengine_service_autoscalling_tracking_scalin_cooldown }}"
+
+    - name: TemplateEngine || Creating TemplateEngine MEM Scalling Policy for {{ global_var_environment }}
+      aws_application_scaling_policy:
+        state: present
+        policy_name: "{{ bb_templateengine_service_mem_autoscalling_policy_name }}"
+        service_namespace: ecs
+        region: "{{ global_var_ecs_region }}"
+        resource_id: service/{{ global_var_ecs_clustername }}/{{ bb_templateengine_service_name }}
+        scalable_dimension: ecs:service:DesiredCount
+        policy_type: "{{ bb_templateengine_service_autoscalling_policy_type }}"
+        minimum_tasks: "{{ bb_templateengine_service_autoscalling_min_task }}"
+        maximum_tasks: "{{ bb_templateengine_service_autoscalling_max_task }}"
+        target_tracking_scaling_policy_configuration:
+          TargetValue: "{{ bb_templateengine_service_mem_autoscalling_tracking_scaling_target_value }}"
+          PredefinedMetricSpecification:
+            PredefinedMetricType: "{{ bb_templateengine_service_mem_autoscalling_tracking_scaling_metric_spec }}"
+          ScaleOutCooldown: "{{ bb_templateengine_service_mem_autoscalling_tracking_scalout_cooldown }}"
+          ScaleInCooldown: "{{ bb_templateengine_service_mem_autoscalling_tracking_scalin_cooldown }}"
+
+    - name: TemplateEngine || Creating TemplateEngine CPU Scalling Policy for {{ global_var_environment }}
+      aws_application_scaling_policy:
+        state: present
+        policy_name: "{{ bb_templateengine_service_cpu_autoscalling_policy_name }}"
+        service_namespace: ecs
+        region: "{{ global_var_ecs_region }}"
+        resource_id: service/{{ global_var_ecs_clustername }}/{{ bb_templateengine_service_name }}
+        scalable_dimension: ecs:service:DesiredCount
+        policy_type: "{{ bb_templateengine_service_autoscalling_policy_type }}"
+        minimum_tasks: "{{ bb_templateengine_service_autoscalling_min_task }}"
+        maximum_tasks: "{{ bb_templateengine_service_autoscalling_max_task }}"
+        target_tracking_scaling_policy_configuration:
+          TargetValue: "{{ bb_templateengine_service_cpu_autoscalling_tracking_scaling_target_value }}"
+          PredefinedMetricSpecification:
+            PredefinedMetricType: "{{ bb_templateengine_service_cpu_autoscalling_tracking_scaling_metric_spec }}"
+          ScaleOutCooldown: "{{ bb_templateengine_service_cpu_autoscalling_tracking_scalout_cooldown }}"
+          ScaleInCooldown: "{{ bb_templateengine_service_cpu_autoscalling_tracking_scalin_cooldown }}"
+
+
+    # - name: templateengine || Creating a Sleep Time scheduled application autoscalling for templateengine
+    #   shell: > 
+    #       aws application-autoscaling put-scheduled-action --service-namespace ecs
+    #       --scalable-dimension ecs:service:DesiredCount
+    #       --resource-id service/{{ global_var_ecs_clustername }}/{{ bb_templateengine_service_name }}
+    #       --scheduled-action-name scheduled-gh-office-{{ bb_templateengine_service_name }}-off-time
+    #       --schedule "cron({{ bb_templateengine_service_sleep_cron | default('00 20 ? * MON-FRI *') }})"
+    #       --scalable-target-action MinCapacity={{ bb_templateengine_service_scheduled_sleep_autoscalling_min_task | default(0) }},MaxCapacity={{ bb_templateengine_service_scheduled_sleep_autoscalling_max_task | default(0) }}
+    #       --region {{ global_var_ecs_region }}
+    #       --profile {{ lookup('env','AWS_PROFILE') }}
+    #   when:
+    #     - global_awx_ad_hoc_shell_switch is defined
+    #     - not global_awx_ad_hoc_shell_switch
+    #     - bb_templateengine_service_scheduled_autoscalling | default(false)    
+
+    # - name: templateengine Server || Creating a Sleep Time scheduled application autoscalling for templateengine with awscli
+    #   shell: > 
+    #       aws application-autoscaling put-scheduled-action --service-namespace ecs
+    #       --scalable-dimension ecs:service:DesiredCount
+    #       --resource-id service/{{ global_var_ecs_clustername }}/{{ bb_templateengine_service_name }}
+    #       --scheduled-action-name scheduled-gh-office-{{ bb_templateengine_service_name }}-off-time
+    #       --schedule "cron({{ bb_templateengine_service_sleep_cron | default('00 20 ? * MON-FRI *') }})"
+    #       --scalable-target-action MinCapacity={{ bb_templateengine_service_scheduled_sleep_autoscalling_min_task | default(0) }},MaxCapacity={{ bb_templateengine_service_scheduled_sleep_autoscalling_max_task | default(0) }}
+    #       --region {{ global_var_ecs_region }}
+    #   when:
+    #     - global_awx_ad_hoc_shell_switch is defined
+    #     - global_awx_ad_hoc_shell_switch
+    #     - bb_templateengine_service_scheduled_autoscalling | default(false)
+    #   environment:
+    #     AWS_ACCESS_KEY_ID: "{{ vault_aws_access_key }}"
+    #     AWS_SECRET_ACCESS_KEY: "{{ vault_aws_access_secret }}" 
+
+    # - name: templateengine || Creating a Wake Time scheduled application autoscalling for templateengine
+    #   shell: > 
+    #       aws application-autoscaling put-scheduled-action --service-namespace ecs
+    #       --scalable-dimension ecs:service:DesiredCount
+    #       --resource-id service/{{ global_var_ecs_clustername }}/{{ bb_templateengine_service_name }}
+    #       --scheduled-action-name scheduled-gh-office-{{ bb_templateengine_service_name }}-wake-time
+    #       --schedule "cron({{ bb_templateengine_service_wake_cron | default('00 08 ? * MON-FRI *') }})"
+    #       --scalable-target-action MinCapacity={{ bb_templateengine_service_scheduled_wake_autoscalling_min_task | default(1) }},MaxCapacity={{ bb_templateengine_service_scheduled_wake_autoscalling_max_task | default(1) }}
+    #       --region {{ global_var_ecs_region }}
+    #       --profile {{ lookup('env','AWS_PROFILE') }}
+    #   when:
+    #     - global_awx_ad_hoc_shell_switch is defined
+    #     - not global_awx_ad_hoc_shell_switch
+    #     - bb_templateengine_service_scheduled_autoscalling | default(false)    
+
+    # - name: templateengine Server || Creating a Wake Time scheduled application autoscalling for templateengine with awscli
+    #   shell: > 
+    #       aws application-autoscaling put-scheduled-action --service-namespace ecs
+    #       --scalable-dimension ecs:service:DesiredCount
+    #       --resource-id service/{{ global_var_ecs_clustername }}/{{ bb_templateengine_service_name }}
+    #       --scheduled-action-name scheduled-gh-office-{{ bb_templateengine_service_name }}-wake-time
+    #       --schedule "cron({{ bb_templateengine_service_wake_cron | default('00 08 ? * MON-FRI *') }})"
+    #       --scalable-target-action MinCapacity={{ bb_templateengine_service_scheduled_wake_autoscalling_min_task | default(1) }},MaxCapacity={{ bb_templateengine_service_scheduled_wake_autoscalling_max_task | default(1) }}
+    #       --region {{ global_var_ecs_region }}
+    #   when:
+    #     - global_awx_ad_hoc_shell_switch is defined
+    #     - global_awx_ad_hoc_shell_switch
+    #     - bb_templateengine_service_scheduled_autoscalling | default(false)
+    #   environment:
+    #     AWS_ACCESS_KEY_ID: "{{ vault_aws_access_key }}"
+    #     AWS_SECRET_ACCESS_KEY: "{{ vault_aws_access_secret }}" 
+
+

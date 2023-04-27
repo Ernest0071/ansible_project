@@ -1,0 +1,111 @@
+- name: Including network and facts
+  import_playbook: fact_gatherer_playbook.yml
+  tags:
+    - facts
+
+- name: Proxy setup
+  hosts: tag_Name_{{ global_var_country_code }}_{{ global_var_product }}_{{ global_var_environment }}_proxy
+  # hosts: tag_Name_main_billbox_preprod_proxy
+  become: true
+  gather_facts: true
+  # pre_tasks:
+  #   - debug: var=hostvars.localhost.reg_internal_alb_facts.load_balancers.0.dns_name
+  roles:
+    - role: util
+    - role: aws
+    - role: networking
+    - role: webserver_family
+    - role: elasticbeats
+    - role: monitoring_family    
+  vars_files:
+    - "playbook_vars/{{ global_var_environment }}/vault/{{ global_var_environment }}_variables.vault"
+    - "playbook_vars/{{ global_var_environment }}/global_vars.yml"
+    - "playbook_vars/{{ global_var_environment }}/proxy_default_vars.yml"
+    - "playbook_vars/{{ global_var_environment }}/proxy_forward_zw_econet_vars.yml"
+    - "playbook_vars/{{ global_var_environment }}/proxy_forward_gh_mtndatabundle_vars.yml"
+    - "playbook_vars/{{ global_var_environment }}/proxy_forward_gh_stanbicdatapower_vars.yml"
+    - "playbook_vars/{{ global_var_environment }}/proxy_forward_gh_appsnmobairteltigo_vars.yml"
+    - "playbook_vars/{{ global_var_environment }}/proxy_forward_zw_ecocash_vars.yml"
+    - "playbook_vars/{{ global_var_environment }}/proxy_forward_gh_ghipss_vars.yml"
+    - "playbook_vars/{{ global_var_environment }}/proxy_forward_gh_afrxprssairteltigo_vars.yml"
+    - "playbook_vars/{{ global_var_environment }}/proxy_forward_gh_afrxprssglo_vars.yml"
+    - "playbook_vars/{{ global_var_environment }}/proxy_forward_gh_afrxprssvodafone_vars.yml"
+    - "playbook_vars/{{ global_var_environment }}/proxy_forward_gh_airteltigobankintegration_vars.yml"
+    - "playbook_vars/{{ global_var_environment }}/proxy_forward_gh_gwcl_vars.yml"
+    - "playbook_vars/{{ global_var_environment }}/proxy_forward_gh_vodafonecash_vars.yml"
+    - "playbook_vars/{{ global_var_environment }}/proxy_forward_gh_zeepaymomo_vars.yml"
+    - "playbook_vars/{{ global_var_environment }}/proxy_forward_gh_mtnfttxbundle_vars.yml"
+
+
+
+
+
+
+
+#     # - "playbook_vars/{{ global_var_environment }}/ghria_proxy_vars.yml"
+#     # - "playbook_vars/{{ global_var_environment }}/ghsurfline_proxy_vars.yml"
+#     # - "playbook_vars/{{ global_var_environment }}/ghstanlib_proxy_vars.yml"
+#     # - "playbook_vars/{{ global_var_environment }}/ghtotal_proxy_vars.yml"
+#     # - "playbook_vars/{{ global_var_environment }}/zwcellulant_proxy_vars.yml"
+#     # - "playbook_vars/{{ global_var_environment }}/zwstanbic_proxy_vars.yml"
+#     # - "playbook_vars/{{ global_var_environment }}/zweconet_proxy_vars.yml"
+#     # - "playbook_vars/{{ global_var_environment }}/ghmtnova_proxy_vars.yml"
+#     # - "playbook_vars/{{ global_var_environment }}/ghmtnfttxbundle_proxy_vars.yml"
+#     # - "playbook_vars/{{ global_var_environment }}/ghgwcl_proxy_vars.yml"
+#     # - "playbook_vars/{{ global_var_environment }}/zwecocash_proxy_vars.yml"
+
+# - hosts: localhost
+#   connection: local
+#   gather_facts: yes
+#   vars_files:
+#     - playbook_vars/{{ global_var_environment }}/global_vars.yml
+#     - playbook_vars/{{ global_var_environment }}/vault/{{ global_var_environment }}_variables.vault  
+#     - playbook_vars/{{ global_var_environment }}/proxy_forward_gh_zeepaymomo_vars.yml    
+#   tasks:
+
+#     - name: Proxy Elb group infos
+#       elb_target_group_info:
+#         load_balancer_arn: "{{ hostvars.localhost.reg_internal_alb_facts.load_balancers.0.load_balancer_arn }}"
+#         region: "{{ global_var_ecs_region }}"
+#       register: reg_proxy_target_group_facts
+    
+#     - name: Extracting in a  list all the targetgroups available
+#       set_fact:
+#         local_target_group_list: "{{ reg_proxy_target_group_facts.target_groups | map(attribute='target_group_name') | list }}"
+
+#     - debug: var=reg_proxy_instance_ids
+
+#     # - name: Extracting ids from EC2 Facts from the proxies
+#     #   set_fact: 
+#     #     proxy_ids: "{{ hostvars.localhost.reg_proxy_facts.instances | map(attribute='instance_id') | list }}"
+       
+ 
+#     - name: Billbox Core || Creating core target group public 
+#       elb_target_group:
+#         name: "{{ item.value.name }}"
+#         state: present 
+#         protocol: "{{ item.value.protocol }}"
+#         successful_response_codes: "{{ item.value.success_response_code }}"
+#         wait_timeout: 200 
+#         health_check_interval: "{{ item.value.check_interval }}"
+#         modify_targets: true 
+#         healthy_threshold_count: "{{ item.value.healthy_count }}"
+#         health_check_path: "{{ item.value.check_path }}"
+#         health_check_protocol: "{{ item.value.check_protocol }}"
+#         unhealthy_threshold_count: "{{ item.value.unhealthy_count }}"
+#         region: "{{ global_var_ecs_region }}"
+#         target_type: "{{ item.value.target_type }}"
+#         targets: "{{ item.value.targets }}"
+#         port: "{{ item.value.port }}"
+#         vpc_id: "{{ hostvars.localhost.reg_vpc_facts.vpcs.0.id }}" 
+#         # wait: false 
+#         health_check_timeout: "{{ item.value.check_timeout }}"
+#         tags: "{{ item.value.tags }}"
+#       register: reg_core_targetgroup
+#       with_dict: "{{ proxy_load_balancer_setup }}"
+#       when: 
+#       - proxy_load_balancer_setup is defined
+#       - item.value.name not in local_target_group_list
+
+    
+    ###AWS_PROFILE=slydepay ansible-playbook ~/Dreamoval/Engineering/configuration-management-ansible/playbooks/billbox_ecs/{{ global_var_environment }}/proxy_playbook_ireland.yml -u ubuntu --private-key ~/Dropbox/creds/pemfiles/billbox/GH/GHBillboxProductionOps.pem --vault-password-file ~/Dropbox/creds/ansible-vault/billbox/production.password

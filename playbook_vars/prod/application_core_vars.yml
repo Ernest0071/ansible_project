@@ -1,0 +1,264 @@
+
+bb_core_main_port: 9595
+bb_core_int_port: 9191
+bb_core_tomcat_jmx_port: 13000
+bb_core_server_enabled: true
+bb_ctive_region: "{{ global_var_ird_region }}"
+bb_ctive_priv_dns_namespace: "{{ global_var_priv_dns_namespace }}"
+bb_core_server_task_family_name: "{{ global_var_country_code }}-{{ global_var_product }}-{{global_var_environment}}-{{ global_var_services_details.coreserver.name }}"
+bb_core_server_task_networkmode: awsvpc
+bb_core_server_task_executionRoleArn: "{{ hostvars.localhost.reg_ecs_role_facts.iam_roles.0.arn }}"
+bb_core_server_task_ecsmode: FARGATE
+bb_core_server_task_cpu: 2048
+bb_core_server_task_memory: 5120
+bb_core_server_task_container_name: "{{ global_var_services_details.coreserver.name }}"
+bb_core_server_task_container_image: "{{ global_var_services_details.coreserver.image }}"
+bb_core_server_task_container_cpu: 2048
+bb_core_server_task_container_memory: 5120
+bb_core_server_task_container_memoryReservation: 1024
+# bb_core_server_task_container_credentials_parameter: "{{ hostvars.localhost.reg_quayio_secrets_facts.ARN }}"
+bb_core_server_task_container_credentials_parameter: "{{ hostvars.localhost.reg_dockerhub_secrets_facts.ARN }}"
+bb_core_server_task_container_portmap_containerport: 8080
+bb_core_server_task_container_portmap_hostport: 8080
+bb_core_server_task_container_essential: true
+bb_core_sidecar_server_task_container_essential: true
+bb_core_image_path: "{{ global_var_cloudfront_base_url }}/static/images/"
+bb_core_download_path: "{{ global_var_cloudfront_base_url }}/download/"
+bb_core_server_owasp_resc: classpath:*.properties
+bb_core_server_auth_cache_ttl_mins: "10"
+bb_core_server_max_login_attempt: "3"
+bb_core_server_max_use_forward_headers: "false"
+bb_core_server_kafka_enable: "true"
+bb_core_server_task_container_java_vars:
+  - "-Xmx{{ bb_core_server_task_container_memory }}M"
+  - "-XX:PermSize=256m -XX:MaxPermSize={{ bb_core_server_task_container_memoryReservation }}M"
+  - "-XX:+UseConcMarkSweepGC -XX:+CMSParallelRemarkEnabled"
+  - "-XX:+UseCMSInitiatingOccupancyOnly -XX:CMSInitiatingOccupancyFraction=70"
+  - "-XX:+ScavengeBeforeFullGC -XX:+CMSScavengeBeforeRemark"
+  - "-XX:+UseGCLogFileRotation -XX:NumberOfGCLogFiles=10 -XX:GCLogFileSize=100M"
+  - "-Dsun.net.inetaddr.ttl=300"
+  - "-Djava.rmi.server.hostname=localhost"
+  - "-Dcom.sun.management.jmxremote"
+  - "-Dcom.sun.management.jmxremote.port={{ bb_core_tomcat_jmx_port }}"
+  - "-Dcom.sun.management.jmxremote.ssl=False" 
+  - "-Dcom.sun.management.jmxremote.authenticate=False"
+  - "-Dhttps.protocols=TLSv1.2,TLSv1.1"
+  - "-Djdk.tls.client.protocols=TLSv1.2,TLSv1.1"
+  - "-DLOGENTRIES_TOKEN={{ global_var_services_details.coreserver.logToken }}"
+  - "-Dauth.attempt.cache.duration.mins=10"
+  - "-Dserver.use-forward-headers=false"
+  - "-Ddd.agent.host=localhost"
+  - "-Ddd.agent.port=8126"
+  - "-Ddd.logs.injection=true"
+  - "-Ddd.service={{ bb_core_service_name }}"
+  - "-Ddd.env={{ global_var_environment }}"
+  - "-Ddd.version={{ global_var_services_details.coreserver.image.split(':')[1] }}"
+  - "-javaagent:/opt/datadog/dd-java-agent.jar"
+bb_core_server_task_container_secretenv_definition:
+  mainport:
+    id: "{{ global_var_environment }}_BB_APP_MAIN_PORT"
+    name: BB_APP_MAIN_PORT
+    content: "{{ bb_core_main_port }}"
+  intport:
+    id: "{{ global_var_environment }}_BB_APP_INT_PORT"
+    name: BB_APP_INT_PORT
+    content: "{{ bb_core_int_port }}"
+  mongodbname:
+    id: "{{ global_var_environment }}_BB_MONGO_DBNAME"
+    name: BB_MONGO_DBNAME
+    content: "{{ vault_mongo_core_dbname }}"
+  mongodbrepllist:
+    id: "{{ global_var_environment }}_BB_MONGO_REPL_LIST"
+    name: BB_MONGO_REPL_LIST
+    content: "{{ hostvars.localhost.reg_mongo_cluster_uri }}"
+  mongodbusername:
+    id: "{{ global_var_environment }}_BB_MONGO_USERNAME"
+    name: BB_MONGO_USERNAME
+    content: "{{ vault_mongo_core_username }}"
+  mongodbpassword:
+    id: "{{ global_var_environment }}_BB_MONGO_PASSWORD"
+    name: BB_MONGO_PASSWORD
+    content: "{{ vault_mongo_core_password }}"
+  redishost:
+    id: "{{ global_var_environment }}_BB_REDIS_HOST"
+    name: BB_REDIS_HOST
+    content: "{{ hostvars.localhost.reg_elasticache_facts }}"
+  redisport:
+    id: "{{ global_var_environment }}_BB_REDIS_PORT"
+    name: BB_REDIS_PORT
+    content: "{{ global_var_redis_port }}"
+  mon_api_key:
+    id: "{{ global_var_environment }}_DD_API_KEY"
+    name: DD_API_KEY
+    content: "{{ vault_datadog_api_key }}"
+  elevy_private_key_passphrase:
+    id: "{{ global_var_environment }}_ELEVY_MLTS_PASS"
+    name: ELEVY_MLTS_PASS
+    content: "{{ vault_elevy_private_key_passphrase }}"      
+  full_mongo_uri:
+    id: "{{ global_var_environment }}_BB_MONGO_URI"
+    name: BB_MONGO_URI
+    content: "mongodb://{{ vault_mongo_core_username }}:{{ vault_mongo_core_password }}@{{ hostvars.localhost.reg_mongo_cluster_uri }}/{{ vault_mongo_core_dbname }}?replicaSet={{ global_var_replicatset_name }}&readPreference=secondaryPreferred"
+
+bb_core_server_task_container_secretenv:
+  - valueFrom: "{{ global_var_environment }}_BB_APP_MAIN_PORT"
+    name: BB_APP_MAIN_PORT
+  - valueFrom: "{{ global_var_environment }}_BB_APP_INT_PORT"
+    name: BB_APP_INT_PORT
+  - valueFrom: "{{ global_var_environment }}_BB_MONGO_DBNAME"
+    name: BB_MONGO_DBNAME
+  - valueFrom: "{{ global_var_environment }}_BB_MONGO_REPL_LIST"
+    name: BB_MONGO_REPL_LIST
+  - valueFrom: "{{ global_var_environment }}_BB_MONGO_USERNAME"
+    name: BB_MONGO_USERNAME
+  - valueFrom: "{{ global_var_environment }}_BB_MONGO_PASSWORD"
+    name: BB_MONGO_PASSWORD
+  - valueFrom: "{{ global_var_environment }}_BB_REDIS_HOST"
+    name: BB_REDIS_HOST
+  - valueFrom: "{{ global_var_environment }}_BB_REDIS_PORT"
+    name: BB_REDIS_PORT
+  - valueFrom: "{{ global_var_environment }}_NEW_RELIC_LICENSE_KEY"
+    name: NEW_RELIC_LICENSE_KEY
+  - valueFrom: "{{ global_var_environment }}_BB_MONGO_URI"
+    name: BB_MONGO_URI
+
+bb_corenginx_server_task_container_env:
+  - name: FULL_GIT_URL
+    value: "https://{{ vault_git_username }}:{{ vault_git_token }}@bitbucket.org/kowri/kb-nginx-configuration.git"
+  - name: CONF_FILE
+    value: "coreserver_prod.conf"
+bb_core_server_task_container_env:
+  - name: JAVA_OPTS
+    value: "{{ bb_core_server_task_container_java_vars | join(' ') }}"    
+  - name: BB_APP_DOWNLOAD_PATH
+    value: "{{ bb_core_download_path }}"
+  - name: BB_APP_IMAGE_PATH
+    value: "{{ bb_core_image_path }}"  
+  - name: BB_APP_ELK_URL
+    value: "https://{{ hostvars.localhost.reg_elasticsearch_cluster.Endpoints.vpc }}"
+  - name: BB_APP_KAFKA_BOOSTRAP
+    value: "{{ hostvars.localhost.reg_kafka_bootstrap_facts_ips_and_port }}"
+  - name: BB_APP_CONTEXROOT
+    value: "https://{{ global_var_services_details.coreserver.domain }}"
+  - name: BB_APP_IMAGEROOT
+    value: "{{ global_var_cloudfront_base_url }}"
+  - name: FULL_GIT_URL
+    value: "https://{{ vault_git_username }}:{{ vault_git_token }}@bitbucket.org/kowri/prod-kb-groovy-features.git"
+  - name: BB_APP_S3_BUCKET
+    value: "public.prod.usebillbox.com"
+  - name: BB_APP_S3_ENDPOINTURL
+    value: "https://s3-{{ global_var_ecs_region }}.amazonaws.com"
+  - name: BB_APP_DATA_SHARE
+    value: "/opt/repo"
+  - name: BB_APP_S3_CDN
+    value: "true"
+  - name: BB_OWASP_RESC
+    value: "{{bb_core_server_owasp_resc}}"
+  - name: BB_MAX_LOGIN_ATTEMPT
+    value: "{{bb_core_server_max_login_attempt}}"
+  - name: BB_AUTH_CACHE_TTL
+    value: "{{bb_core_server_auth_cache_ttl_mins}}"
+  - name: BB_USE_FORWARD_HEADERS
+    value: "{{bb_core_server_max_use_forward_headers}}"
+  - name: BB_SETTLEMENT_WEEKEND_ENABLE
+    value: "true"
+  - name: BB_SESSION_TIMEOUT
+    value: "15"
+  - name: BB_CORS_ORIGIN_ALLOW
+    value: "localhost:11000"
+  - name: BB_KAFKA_ENABLE
+    value: "{{ bb_core_server_kafka_enable }}"      
+bb_core_server_task_container_mon_env_docker_env_tags:
+  ENVIRONMENT: "{{ global_var_environment }}"     
+bb_core_server_task_container_mon_env:
+  - name: "DD_DOCKER_ENV_AS_TAGS"
+    # value: '{"ENVIRONMENT":"{{ global_var_environment }}"}'
+    value: "{{ bb_core_server_task_container_mon_env_docker_env_tags | to_json }}"
+  - name: "DD_APM_NON_LOCAL_TRAFFIC"
+    value: "true"
+  - name: "ECS_FARGATE"
+    value: "true"
+  - name: "DD_APM_ENABLED"
+    value: "true" 
+  - name: "DD_PROCESS_AGENT_ENABLED"
+    value: "true" 
+  - name: "DD_DOGSTATSD_NON_LOCAL_TRAFFIC"
+    value: "true"
+  - name: "DD_DOGSTATSD_PORT"
+    value: "8125"
+  - name: "DD_APM_RECEIVER_PORT"
+    value: "8126"
+  - name: "DD_ENV"
+    value: "{{ global_var_environment }}"
+  - name: "DD_SERVICE"
+    value: "{{ bb_core_service_name }}"
+  - name: "DD_VERSION"
+    value: "{{ global_var_services_details.coreserver.image.split(':')[1] }}"
+bb_core_server_task_container_log_env:
+  - name: "DD_ENV"
+    value: "{{ global_var_environment }}"
+  - name: "DD_SERVICE"
+    value: "{{ bb_core_service_name }}"
+  - name: "DD_VERSION"
+    value: "{{ global_var_services_details.coreserver.image.split(':')[1] }}"
+bb_core_server_task_container_mon_secretenv:
+  - valueFrom: "{{ global_var_environment }}_DD_API_KEY"
+    name: DD_API_KEY
+
+bb_core_server_task_container_log_driver: awslogs
+bb_core_server_task_container_log_logsgroup: "{{ global_var_log_group }}"
+bb_core_server_task_container_log_logsregion: "{{ global_var_ird_region }}"
+bb_core_server_task_container_log_logsprefix: "{{ global_var_country_code }}-{{ global_var_product }}-{{ global_var_environment }}-"
+bb_core_alb_arn: "{{ hostvars.localhost.reg_alb_facts.load_balancers.0.load_balancer_arn }}"
+bb_core_service_name: "{{global_var_country_code}}-{{global_var_product}}-{{global_var_environment}}-{{ global_var_services_details.coreserver.name }}-service"
+bb_core_targetgroup_name: "{{ global_var_product }}-{{ global_var_environment }}-{{ global_var_services_details.coreserver.application_name }}TG"
+bb_core_intetnal_targetgroup_name: "{{ global_var_product }}-{{ global_var_environment }}-{{ global_var_services_details.coreserver.application_name }}InternalTG"
+bb_core_targetgroup_protocol: "http"
+bb_core_internallistener_protocol: "HTTP"
+bb_core_ssl_targetgroup_name: "{{ global_var_product }}-{{ global_var_environment }}-{{ global_var_services_details.coreserver.application_name }}SSLTG"
+bb_core_ssl_targetgroup_protocol: "https"
+bb_core_targetgroup_success_http_code: 200
+bb_core_targetgroup_hc_interval: 6
+bb_core_targetgroup_hc_timeout: 5
+bb_core_targetgroup_hc_healthycount: 3
+bb_core_targetgroup_hc_unhealthycount: 3
+bb_core_targetgroup_hc_path: "/login"
+bb_core_targetgroup_hc_protocol: "http"
+bb_core_ssl_targetgroup_hc_protocol: "http"
+bb_core_targetgroup_targettype: "ip"
+
+bb_core_service_count: 2
+bb_core_service_platform_version: 1.3.0
+bb_core_service_hc_graceperiod: 600
+bb_core_service_autoscalling_policy_type: "TargetTrackingScaling"
+bb_core_service_autoscalling_min_task: "{{ bb_core_service_count }}"
+bb_core_service_autoscalling_max_task: 12
+bb_core_service_mem_autoscalling_policy_name: "{{ bb_core_server_task_family_name }}-mem-as-policy"
+bb_core_service_cpu_autoscalling_policy_name: "{{ bb_core_server_task_family_name }}-cpu-as-policy"
+bb_core_service_mem_autoscalling_tracking_scaling_target_value: 70
+bb_core_service_cpu_autoscalling_tracking_scaling_target_value: 50
+bb_core_service_mem_autoscalling_tracking_scaling_metric_spec: "ECSServiceAverageMemoryUtilization"
+bb_core_service_cpu_autoscalling_tracking_scaling_metric_spec: "ECSServiceAverageCPUUtilization"
+bb_core_service_mem_autoscalling_tracking_scalout_cooldown: 60
+bb_core_service_mem_autoscalling_tracking_scalin_cooldown: 60
+bb_core_service_cpu_autoscalling_tracking_scalout_cooldown: 120
+bb_core_service_cpu_autoscalling_tracking_scalin_cooldown: 180
+bb_core_service_awscli_enabled: false
+bb_core_server_sideproxy_name: "sidecarproxy"
+bb_core_server_sideproxy_image: "docker.io/dreamoval/kowribiz-envoyproxy:release-2.1.4-e06.425"
+bb_core_server_sideproxy_essential: true
+bb_core_server_sideproxy_admin_port: 9901
+bb_core_server_sideproxy_admin_elevy_port: 10000
+bb_core_server_sideproxy_secretsenv:
+  - valueFrom: "{{ global_var_environment }}_ELEVY_MLTS_PASS"
+    name: ELEVY_MLTS_PASS
+bb_core_server_sideproxy_env:
+  - name: CLUSTER_ENDPOINT_ADDRESS
+    value: "api.elevygh.org"
+  - name: CLIENT_SSL_CERTIFICATE
+    value: "/elevy/cert/prod.crt"
+  - name: CLIENT_SSL_CERTIFICATE_KEY
+    value: "/elevy/cert/prod.key"
+  - name: LOG_LEVEL
+    value: "info"
+

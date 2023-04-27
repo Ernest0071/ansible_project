@@ -1,0 +1,79 @@
+---
+proxy_forward_gh_afrxprssvodafone_vhost_file: "forward_gh_afrxprssvodafone.conf"
+proxy_forward_gh_afrxprssvodafone_log_access_file: "/var/log/nginx/forward_gh_afrxprssvodafone_nginx_proxy_access.log"
+proxy_forward_gh_afrxprssvodafone_log_error_file: "/var/log/nginx/forward_gh_afrxprssvodafone_nginx_proxy_error.log"
+proxy_forward_gh_afrxprssvodafone_upstream_host1:  "172.24.96.42:18888"
+proxy_forward_gh_afrxprssvodafone_upstream_host1_mon_type: tcp
+proxy_forward_gh_afrxprssvodafone_upstream_host1_mon_scheme: http
+webserverfamily_nginx_ppa_version_enable: true
+webserverfamily_nginx_enable: true
+webserverfamily_nginx_install_details:
+  - nginx
+  - nginx-extras
+webserverfamily_nginx_push_configfiles_details:
+  forward_gh_afrxprssvodafone:
+    src: "nginx/_generic_vhost.conf.j2"
+    dest: "/etc/nginx/sites-available/{{ proxy_forward_gh_afrxprssvodafone_vhost_file }}"
+    owner: "root"
+    group: "root"
+    port: "{{ global_gh_afrxprssvodafone_nginx_port }}"
+    ssl_enabled: false
+    domain_names:
+      - "localhost"
+    logging_enabled: true
+    access_log_file: "{{ proxy_forward_gh_afrxprssvodafone_log_access_file }}"
+    access_format: "jsonlog"
+    error_log_file: "{{ proxy_forward_gh_afrxprssvodafone_log_error_file }}"
+    locations:
+      - context: "/test"
+        instructions:
+          - "access_log off"
+          - "return 200"
+      - context: "/"
+        instructions:
+          - "proxy_set_header X-Forwarded-For $server_addr"
+          - "proxy_pass {{ proxy_forward_gh_afrxprssvodafone_upstream_host1_mon_scheme }}://{{ proxy_forward_gh_afrxprssvodafone_upstream_host1 }}/"
+          - "default_type        application/xml"
+webserverfamily_nginx_deletefiles_hash_details:
+  proxy_forward_gh_afrxprssvodafone_siteavailable:
+    file: "/etc/nginx/sites-available/forward_gh_africxpress_vodafone.conf"
+  proxy_forward_gh_afrxprssvodafone_siteenabled:
+    file: "/etc/nginx/sites-enabled/forward_gh_africxpress_vodafone.conf"
+webserverfamily_nginx_common_enable_sites_details_hash:
+  forward_gh_afrxprssvodafone:
+    vhost: "{{ proxy_forward_gh_afrxprssvodafone_vhost_file }}"
+webserverfamily_nginx_common_validation_enable: true
+webserverfamily_nginx_common_restart_enabled: true
+elasticbeats_configuration_details:
+  forward_gh_afrxprssvodafone:
+      src: "monitor.yml.j2"
+      dest: "/etc/heartbeat/monitors.d/forward_gh_afrxprssvodafone.yml"
+      type: "{{ proxy_forward_gh_afrxprssvodafone_upstream_host1_mon_type }}"
+      name: "forward_gh_afrxprssvodafone"
+      enabled: true
+      schedule: "@every 30s"
+      hosts: ["{{proxy_forward_gh_afrxprssvodafone_upstream_host1}}"]
+elasticbeats_systemd_details: 
+  restart:
+      name: "heartbeat-elastic"
+      state: "restarted"
+elk_instance_name: "{{ hostvars[inventory_hostname]['ec2_placement'] }}"
+monitoringfamily_r7insightops_forward_gh_afrxprssvodafone_accesslog_name: "NginxProxy_Forward_GH_AfrxprssVodafone_Access_log"
+monitoringfamily_r7insightops_forward_gh_afrxprssvodafone_errorlog_name: "NginxProxy_Forward_GH_AfrxprssVodafone_Error_log"
+monitoringfamily_r7insightops_agent_templating_details:
+  dest: "{{ monitoringfamily_r7insightops_config_path }}/logging.json"
+  src: "rapid7_insightops/config.j2"
+  api_key: "{{ vault_rapid7insightops_apikey }}"
+  servername: "{{ inventory_hostname }}"
+monitoringfamily_r7insightops_agent_templating_data:
+  forward_gh_afrxprssvodafone:
+      appnginxaccess:
+        r7dest: "{{ global_var_insightops_log_set }}/{{ monitoringfamily_r7insightops_forward_gh_afrxprssvodafone_accesslog_name }}"
+        enabled: "true"
+        name: "{{ monitoringfamily_r7insightops_forward_gh_afrxprssvodafone_accesslog_name }}"
+        path: "{{ proxy_forward_gh_afrxprssvodafone_log_access_file }}"
+      appnginxerror:
+        r7dest: "{{ global_var_insightops_log_set }}/{{ monitoringfamily_r7insightops_forward_gh_afrxprssvodafone_errorlog_name }}"
+        enabled: "true"
+        name: "{{ monitoringfamily_r7insightops_forward_gh_afrxprssvodafone_errorlog_name }}"
+        path: "{{ proxy_forward_gh_afrxprssvodafone_log_error_file }}"

@@ -1,0 +1,93 @@
+# bb_notification_main_port: 9595
+# bb_notification_int_port: 9191
+bb_notification_tomcat_jmx_port: 13000
+bb_notification_server_enabled: true
+bb_ctive_region: "{{ global_var_ird_region }}"
+bb_ctive_priv_dns_namespace: "{{ global_var_priv_dns_namespace }}"
+bb_notification_server_task_family_name: "{{ global_var_country_code }}-{{ global_var_product }}-{{global_var_environment}}-{{ global_var_services_details.notificationserver.name }}"
+bb_notification_server_task_networkmode: awsvpc
+bb_notification_server_task_executionRoleArn: "{{ hostvars.localhost.reg_ecs_role_facts.iam_roles.0.arn }}"
+bb_notification_server_task_ecsmode: FARGATE
+bb_notification_server_task_cpu: 256
+bb_notification_server_task_memory: 1024
+bb_notification_server_task_container_name: "{{ global_var_services_details.notificationserver.name }}"
+bb_notification_server_task_container_image: "{{ global_var_services_details.notificationserver.image }}"
+bb_notification_server_task_container_cpu: 256
+bb_notification_server_task_container_memory: 1024
+# bb_notification_server_task_container_memoryReservation: 256
+# bb_notification_server_task_container_credentials_parameter: "{{ hostvars.localhost.reg_quayio_secrets_facts.ARN }}"
+# bb_notification_server_task_container_credentials_parameter: "{{ hostvars.localhost.reg_harbor_secrets_facts.ARN }}"
+bb_notification_server_task_container_credentials_parameter: "{{ hostvars.localhost.reg_dockerhub_secrets_facts.ARN }}"
+bb_notification_server_task_container_essential: true
+bb_notification_sidecar_server_task_container_essential: true
+
+bb_notification_server_task_container_java_vars:
+- "-XX:MaxRAM={{ bb_notification_server_task_memory * 2|pow(20) | int}}"
+- "-XX:MinRAMPercentage=40.0"
+- "-XX:MaxRAMPercentage=90.0"
+- "-XX:+HeapDumpOnOutOfMemoryError" 
+- "-Dspring.cloud.config.uri=http://{{ global_var_services_details.configserver.name }}.{{ global_var_priv_dns_namespace }}:{{ global_var_services_details.configserver.hostPort }}"
+- "-Dspring.application.name={{ global_var_services_details.notificationserver.application_name }}"
+- "-Dspring.cloud.config.name={{ global_var_services_details.notificationserver.config_name }}"
+- "-Dspring.cloud.config.profile={{ global_var_environment }}"
+- "-Dspring.profiles.active={{ global_var_environment }}"
+- "-Dserver.port={{ global_var_services_details.notificationserver.containerPort }}"
+- "-Dlogging.level.root=INFO" 
+
+bb_notification_server_task_container_secretenv_definition:
+  mon_api_key:
+    id: "{{ global_var_environment }}_DD_API_KEY"
+    name: DD_API_KEY
+    content: "{{ vault_datadog_api_key }}"
+bb_notification_server_task_container_mon_secretenv:
+  - valueFrom: "{{ global_var_environment }}_DD_API_KEY"
+    name: DD_API_KEY
+bb_notification_server_task_container_env:
+  - name: JAVA_VARS
+    value: "{{ bb_notification_server_task_container_java_vars | join(' ') }}"
+bb_notification_server_task_container_mon_env:
+  - name: "DD_DOCKER_ENV_AS_TAGS"
+    value: ' {"ENVIRONMENT":"{{ global_var_environment }}"}'
+  # - name: "DD_APM_NON_LOCAL_TRAFFIC"
+  #   value: "true"
+  - name: "ECS_FARGATE"
+    value: "true"
+  # - name: "DD_APM_ENABLED"
+  #   value: "true" 
+  - name: "DD_DOGSTATSD_NON_LOCAL_TRAFFIC"
+    value: "true"
+  - name: "DD_DOGSTATSD_PORT"
+    value: "8125"
+  # - name: "DD_APM_RECEIVER_PORT"
+  #   value: "8126"
+
+bb_notification_server_task_container_log_driver: awslogs
+bb_notification_server_task_container_log_logsgroup: "{{ global_var_country_code }}-{{ global_var_product }}-{{ global_var_environment }}-ecsgroup"
+bb_notification_server_task_container_log_logsregion: "{{ global_var_ird_region }}"
+bb_notification_server_task_container_log_logsprefix: "{{ global_var_country_code }}-{{ global_var_product }}-{{ global_var_environment }}-"
+bb_notification_alb_arn: "{{ hostvars.localhost.reg_alb_facts.load_balancers.0.load_balancer_arn }}"
+bb_notification_service_name: "{{global_var_country_code}}-{{global_var_product}}-{{global_var_environment}}-{{ global_var_services_details.notificationserver.name }}-service"
+
+bb_notification_service_count: 1
+bb_notification_service_platform_version: 1.3.0
+bb_notification_service_autoscalling_policy_type: "TargetTrackingScaling"
+bb_notification_service_autoscalling_min_task: "{{ bb_notification_service_count }}"
+bb_notification_service_autoscalling_max_task: 4
+bb_notification_service_mem_autoscalling_policy_name: "{{ bb_notification_server_task_family_name }}-mem-as-policy"
+bb_notification_service_cpu_autoscalling_policy_name: "{{ bb_notification_server_task_family_name }}-cpu-as-policy"
+bb_notification_service_mem_autoscalling_tracking_scaling_target_value: 80
+bb_notification_service_cpu_autoscalling_tracking_scaling_target_value: 70
+bb_notification_service_mem_autoscalling_tracking_scaling_metric_spec: "ECSServiceAverageMemoryUtilization"
+bb_notification_service_cpu_autoscalling_tracking_scaling_metric_spec: "ECSServiceAverageCPUUtilization"
+bb_notification_service_mem_autoscalling_tracking_scalout_cooldown: 60
+bb_notification_service_mem_autoscalling_tracking_scalin_cooldown: 60
+bb_notification_service_cpu_autoscalling_tracking_scalout_cooldown: 120
+bb_notification_service_cpu_autoscalling_tracking_scalin_cooldown: 180
+bb_notification_service_awscli_enabled: false
+# bb_notification_service_scheduled_autoscalling: true
+# bb_notification_service_wake_cron: "10 04 ? * MON-FRI *"
+# bb_notification_service_sleep_cron: "59 19 ? * MON-FRI *"
+# bb_notification_service_vars_main_base_url: "http://{{ global_var_services_details.coreserver.name }}.{{ global_var_priv_dns_namespace }}:{{ global_var_services_details.coreserver.containerPort }}"
+bb_lns_configmap_namespace_and_port_for_messenger: "{{ global_var_services_details.messengerserver.name }}.{{ global_var_priv_dns_namespace }}:{{ global_var_services_details.messengerserver.containerPort }}"
+bb_lns_configmap_namespace_and_port_for_templateengine: "{{ global_var_services_details.templateengineserver.name }}.{{ global_var_priv_dns_namespace }}:{{ global_var_services_details.templateengineserver.containerPort }}"
+bb_lns_kafka_bootstrap: "{{ hostvars.localhost.reg_kafka_bootstrap_facts_ips_and_port }}"

@@ -1,0 +1,48 @@
+util_filesystem_enable: true
+util_filesystem_install_package_list: 
+- unzip
+- htop
+- python-pip
+- python3-pip
+mongofamily_server_security_enabled: true
+mongofamily_security_util_enabled: false
+mongofamily_security_users_details:
+  host1:
+    src: "mongousers.js.j2"
+    dest: "/tmp/user_script.js"
+    rootuser: "{{ vault_mongo_root_username }}"
+    rootpass: "{{ vault_mongo_root_password }}"
+    credentials:
+    - db: "{{ vault_mongo_core_dbname }}"
+      users:
+      - user: "{{ vault_mongo_messenger_username }}"
+        pass: "{{ vault_mongo_messenger_password }}"
+        roles: ["readWrite","dbAdmin"]
+      - user: "{{ vault_mongo_core_username }}"
+        pass: "{{ vault_mongo_core_password }}"
+        roles: ["readWrite","dbAdmin"]
+      - user: "{{ vault_mongo_template_username }}"
+        pass: "{{ vault_mongo_template_password }}"
+        roles: ["readWrite","dbAdmin"]      
+      - user: "{{ vault_mongo_metabase_client_username  }}"
+        pass: "{{ vault_mongo_metabase_client_password }}"
+        roles: ["read"]        
+      - user: "{{ vault_mongo_cardhandler_username  }}"
+        pass: "{{ vault_mongo_cardhandler_password }}"
+        roles: ["readWrite","dbAdmin"]     
+      - user: "{{ vault_mongo_posapi_username  }}"
+        pass: "{{ vault_mongo_posapi_password }}"
+        roles: ["readWrite","dbAdmin"]     
+      - user: "{{ vault_mongo_scheduler_username  }}"
+        pass: "{{ vault_mongo_scheduler_password }}"
+        roles: ["readWrite","dbAdmin"]     
+    - db: "{{ vault_mongo_lns_dbname }}"
+      users:
+      - user: "{{ vault_mongo_lns_username }}"
+        pass: "{{ vault_mongo_lns_password }}"
+        roles: ["readWrite","dbAdmin"]
+    - db: "{{ vault_mongo_ussd_dbname }}"
+      users:
+      - user: "{{ vault_mongo_ussd_username }}"
+        pass: "{{ vault_mongo_ussd_password }}"
+        roles: ["readWrite","dbAdmin"]

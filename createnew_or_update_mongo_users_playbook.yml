@@ -1,0 +1,39 @@
+- hosts: "tag_Name_{{ global_var_country_code }}_{{ global_var_product }}_{{ global_var_environment }}_mongo"
+  become: True
+  gather_facts: true
+  user: "{{ global_var_ubuntu_user }}"
+  vars_files:
+    - "playbook_vars/{{ global_var_environment }}/users_mongo_vars.yml"
+    - "playbook_vars/{{ global_var_environment }}/vault/{{ global_var_environment }}_variables.vault"
+    - "playbook_vars/{{ global_var_environment }}/global_vars.yml"
+  # roles:
+  # - mongo_family
+  # pre_tasks:
+  pre_tasks:
+    - name: Installing unzip
+      apt: 
+        name: unzip
+        state: latest     
+    - name: Installing Pymongo
+      apt: 
+        name: python-pymongo
+        state: latest     
+    - name: Installing Pymongo3
+      apt: 
+        name: python3-pymongo
+        state: latest 
+  roles:
+  - mongo_family
+    
+    # - name: Create or update mongo Users
+    #   mongodb_user:
+    #     database: "{{ item.1.db }}"
+    #     name: "{{ item.2.user }}"
+    #     password: "{{ item.2.pass }}"
+    #     roles: "{{ item.2.roles | join(',') }}"
+    #     state: present
+    #   with_subelements: 
+    #     - "{{ mongofamily_security_users_details }}"
+    #     - credentials
+    #     - credentials.users
+    #   skip_missing: true

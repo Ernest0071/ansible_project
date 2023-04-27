@@ -1,0 +1,187 @@
+
+
+bb_keycloak_server_enabled: true
+smartgrid_active_region: "{{ global_var_ird_region }}"
+smartgrid_active_priv_dns_namespace: "{{ global_var_priv_dns_namespace }}"
+bb_keycloak_server_task_family_name: "{{ global_var_country_code }}-{{ global_var_product }}-{{global_var_environment}}-{{ global_var_services_details.keycloakserver.name }}"
+bb_keycloak_server_task_executionRoleArn: "{{ hostvars.localhost.reg_ecs_role_facts.iam_roles.0.arn }}"
+bb_keycloak_server_task_networkmode: awsvpc
+bb_keycloak_server_task_ecsmode: FARGATE
+bb_keycloak_server_task_cpu: 512
+bb_keycloak_server_task_memory: 2048
+bb_keycloak_server_task_container_name: "{{ global_var_services_details.keycloakserver.name }}"
+bb_keycloak_server_task_container_image: "{{ global_var_services_details.keycloakserver.image }}"
+bb_keycloak_server_task_container_cpu: 512
+bb_keycloak_server_task_container_memory: 2048
+bb_keycloak_server_task_container_memoryReservation: 256
+bb_keycloak_server_task_force_create: yes
+
+bb_keycloak_server_task_container_credentials_parameter: "{{ hostvars.localhost.reg_dockerhub_secrets_facts.ARN }}"
+bb_keycloak_server_task_container_essential: true
+bb_keycloak_sidecar_server_task_container_essential: true
+bb_keycloak_server_task_container_java_vars: 
+  - "-XX:MaxRAM={{ bb_keycloak_server_task_memory * 2|pow(20) | int}}"
+  - "-XX:MinRAMPercentage=40.0"
+  - "-XX:MaxRAMPercentage=90.0"
+  - "-XX:+HeapDumpOnOutOfMemoryError"  
+  - "-Djboss.as.management.blocking.timeout=900"
+  - "-Djava.net.preferIPv4Stack=true"
+  - "-Djboss.https.port=443"
+bb_keycloak_server_task_container_mon_env:
+  - name: "DD_DOCKER_ENV_AS_TAGS"
+    value: ' {"ENVIRONMENT":"{{ global_var_environment }}"}'
+  - name: "DD_APM_NON_LOCAL_TRAFFIC"
+    value: "true"
+  - name: "ECS_FARGATE"
+    value: "true"
+  - name: "DD_APM_ENABLED"
+    value: "true" 
+  - name: "DD_DOGSTATSD_NON_LOCAL_TRAFFIC"
+    value: "true"
+  - name: "DD_DOGSTATSD_PORT"
+    value: "8125"
+  - name: "DD_APM_RECEIVER_PORT"
+    value: "8126"
+bb_keycloak_server_task_container_env:
+  - name: JAVA_OPTS
+    value: "{{ bb_keycloak_server_task_container_java_vars | join(' ') }}"
+  - name: DB_VENDOR
+    value: "mysql"
+  - name: JDBC_PARAMS
+    value: "useSSL=false&autoReconnect=true&maxReconnects=12"
+  - name: PROXY_ADDRESS_FORWARDING
+    value: "true"
+  - name: KEYCLOAK_LOGLEVEL
+    value: "INFO"
+  - name: ROOT_LOGLEVEL
+    value: "INFO"
+  - name: KEYCLOAK_FRONTEND_URL
+    value: "https://{{ global_var_services_details.keycloakserver.domain }}/auth"
+  - name: CACHE_OWNERS_COUNT
+    value: "{{ bb_keycloak_service_count }}"
+  - name: CACHE_OWNERS_AUTH_SESSIONS_COUNT
+    value: "{{ bb_keycloak_service_count }}"
+  - name: JGROUPS_DISCOVERY_PROTOCOL
+    value: "JDBC_PING"
+  - name: JGROUPS_DISCOVERY_PROPERTIES
+    value: "datasource_jndi_name=java:jboss/datasources/KeycloakDS,info_writer_sleep_time=500,remove_old_coords_on_view_change=true"
+  - name: KEYCLOAK_WELCOME_THEME
+    value: "kowribusiness"
+  - name: KEYCLOAK_DEFAULT_THEME
+    value: "kowribusiness"    
+bb_keycloak_server_task_container_secret_rawenv:
+  mon_api_key:
+    id: "{{ global_var_environment }}_{{ global_var_product }}_DD_API_KEY"
+    name: DD_API_KEY
+    content: "{{ vault_datadog_api_key }}"
+  db_addr:
+    id: "{{ global_var_environment }}_{{ global_var_product }}_RDS_DB_ADDR"
+    name: RDS_DB_ADDR
+    content: "{{ vault_rds_writer_endpoint }}"
+  db_database:
+    id: "{{ global_var_environment }}_{{ global_var_product }}_RDS_DB_DATABASE"
+    name: RDS_DB_DATABASE
+    content: "{{ vault_rds_keycloak_dbname }}"
+  db_userame:
+    id: "{{ global_var_environment }}_{{ global_var_product }}_RDS_DB_USER"
+    name: RDS_DB_USER
+    content: "{{ vault_rds_keycloak_username }}"
+  db_password:
+    id: "{{ global_var_environment }}_{{ global_var_product }}_RDS_DB_PASSWORD"
+    name: RDS_DB_PASSWORD
+    content: "{{ vault_rds_keycloak_password }}"
+  db_port:
+    id: "{{ global_var_environment }}_{{ global_var_product }}_RDS_DB_PORT"
+    name: RDS_DB_PORT
+    content: "{{ global_var_mysql_port }}"
+  kc_password:
+    id: "{{ global_var_environment }}_{{ global_var_product }}_KEYCLOAK_PASSWORD"
+    name: KEYCLOAK_PASSWORD
+    content: "{{ vault_keycloak_admin_password }}"
+  kc_user:
+    id: "{{ global_var_environment }}_{{ global_var_product }}_KEYCLOAK_USER"
+    name: KEYCLOAK_USER
+    content: "{{ vault_keycloak_admin_username }}"
+bb_keycloak_server_task_container_mon_secretenv:
+  - name: DD_API_KEY
+    valueFrom: "{{ global_var_environment }}_{{ global_var_product }}_DD_API_KEY"
+
+bb_keycloak_server_task_container_secretenv:
+  - name: DD_API_KEY
+    valueFrom: "{{ global_var_environment }}_{{ global_var_product }}_DD_API_KEY"
+  - name: DB_ADDR
+    valueFrom: "{{ global_var_environment }}_{{ global_var_product }}_RDS_DB_ADDR"
+  - name: DB_DATABASE
+    valueFrom: "{{ global_var_environment }}_{{ global_var_product }}_RDS_DB_DATABASE"
+  - name: DB_USER
+    valueFrom: "{{ global_var_environment }}_{{ global_var_product }}_RDS_DB_USER"
+  - name: DB_PASSWORD
+    valueFrom: "{{ global_var_environment }}_{{ global_var_product }}_RDS_DB_PASSWORD"
+  - name: DB_PORT
+    valueFrom: "{{ global_var_environment }}_{{ global_var_product }}_RDS_DB_PORT"
+  - name: KEYCLOAK_PASSWORD
+    valueFrom: "{{ global_var_environment }}_{{ global_var_product }}_KEYCLOAK_PASSWORD"
+  - name: KEYCLOAK_USER
+    valueFrom: "{{ global_var_environment }}_{{ global_var_product }}_KEYCLOAK_USER"
+bb_keycloak_nginx_server_task_container_env:
+  - name: NGINX_LISTEN_PORT
+    value: "{{ bb_keycloak_proxyserver_listen_port }}"
+  - name: NGINX_SERVER_HOSTNAME
+    value: "{{ global_var_services_details.keycloakserver.domain }}"
+  - name: TEMPLATE_CONF_FILE
+    value: "rp_core_generic_ssl.conf.template"
+  # - name: NGINX_PROXY_PORT
+  #   value: "{{ global_var_services_details.keycloakserver.containerPort }}"
+  - name: NGINX_PROXY_PASS
+    value: "localhost:{{ global_var_services_details.keycloakserver.containerPort }}"
+  - name: NGINX_ALLOW_SUBNET
+    value: "{{ global_var_ird_vpc_cidr }}"
+  - name: NGINX_SSL_CERT_FILE
+    value: "star_doersops_com_bundle.crt"
+  - name: NGINX_SSL_KEY_FILE
+    value: "star_doersops_com.key"
+
+
+bb_keycloak_server_task_container_log_driver: awslogs
+bb_keycloak_server_task_container_log_logsgroup: "{{ global_var_country_code }}-{{ global_var_product }}-{{ global_var_environment }}-ecsgroup"
+bb_keycloak_server_task_container_log_logsregion: "{{ global_var_ird_region }}"
+bb_keycloak_server_task_container_log_logsprefix: "{{ global_var_country_code }}-{{ global_var_product }}-{{ global_var_environment }}-"
+bb_keycloak_alb_arn: "{{ hostvars.localhost.reg_mtls_alb_facts.load_balancers.0.load_balancer_arn }}"
+bb_keycloak_service_name: "{{global_var_country_code}}-{{global_var_product}}-{{global_var_environment}}-{{ global_var_services_details.keycloakserver.name }}-service"
+bb_keycloak_targetgroup_name: "{{ global_var_product }}-{{ global_var_environment }}-{{ global_var_services_details.keycloakserver.application_name }}TG"
+bb_keycloak_targetgroup_protocol: "https"
+bb_keycloak_targetgroup_success_http_code: 200
+bb_keycloak_targetgroup_hc_interval: 10
+bb_keycloak_targetgroup_hc_timeout: 5
+bb_keycloak_targetgroup_hc_healthycount: 3
+bb_keycloak_targetgroup_hc_unhealthycount: 3
+bb_keycloak_targetgroup_hc_path: "/auth/"
+bb_keycloak_targetgroup_hc_protocol: "http"
+bb_keycloak_targetgroup_hc_port: "{{ global_var_services_details.keycloakserver.containerPort }}"
+bb_keycloak_targetgroup_targettype: "ip"
+
+bb_keycloak_service_count: "1"
+bb_keycloak_service_platform_version: 1.3.0
+bb_keycloak_service_hc_graceperiod: 800
+bb_keycloak_service_autoscalling_policy_type: "TargetTrackingScaling"
+bb_keycloak_service_autoscalling_min_task: "{{ bb_keycloak_service_count }}"
+bb_keycloak_service_autoscalling_max_task: 3
+bb_keycloak_service_mem_autoscalling_policy_name: "{{ bb_keycloak_server_task_family_name }}-mem-as-policy"
+bb_keycloak_service_cpu_autoscalling_policy_name: "{{ bb_keycloak_server_task_family_name }}-cpu-as-policy"
+bb_keycloak_service_mem_autoscalling_tracking_scaling_target_value: 80
+bb_keycloak_service_cpu_autoscalling_tracking_scaling_target_value: 70
+bb_keycloak_service_mem_autoscalling_tracking_scaling_metric_spec: "ECSServiceAverageMemoryUtilization"
+bb_keycloak_service_cpu_autoscalling_tracking_scaling_metric_spec: "ECSServiceAverageCPUUtilization"
+bb_keycloak_service_mem_autoscalling_tracking_scalout_cooldown: 60
+bb_keycloak_service_mem_autoscalling_tracking_scalin_cooldown: 60
+bb_keycloak_service_cpu_autoscalling_tracking_scalout_cooldown: 120
+bb_keycloak_service_cpu_autoscalling_tracking_scalin_cooldown: 180
+bb_keycloak_service_awscli_enabled: false
+# bb_keycloak_service_wake_cron: "30 04 ? * MON-FRI *"
+# bb_keycloak_service_sleep_cron: "59 20 ? * MON-FRI *"
+# bb_keycloak_service_scheduled_autoscalling: false
+bb_keycloak_proxyserver_listen_port: "443"
+bb_keycloak_proxyserver_name: keycloakproxy
+bb_keycloak_proxyserver_image: "docker.io/dreamoval/billbox-nginx:dev-48"
+bb_keycloak_service_monitoringserver_image: "datadog/agent:latest"
+bb_keycloak_service_monitoringserver_name: "datadog-agent"

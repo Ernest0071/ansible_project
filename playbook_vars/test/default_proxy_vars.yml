@@ -1,0 +1,199 @@
+---
+proxy_default_vhost_file: "main.conf"
+proxy_default_log_access_file: "/var/log/nginx/default_access.log"
+proxy_default_log_error_file: "/var/log/nginx/default_error.log"
+util_filesystem_enable: true
+util_filesystem_create_directory_with_pem_details_dict:
+  defaultslfolder:
+    path: "{{ global_var_billbox_ssl_folder_path }}"
+  heartbeat:
+    path: "{{ elasticbeats_hearbeat_log_dir }}"
+ 
+aws_install_python_pip_enable: true
+aws_pip_install_boto_enable: true
+aws_install_awscli_enable: true
+aws_s3_enable: true
+aws_s3_pull_object_details:
+  billboxcert:
+    bucket: "{{ global_var_mongo_s3_bucket }}"
+    objpath: "{{ global_var_billbox_ssl_bucket_key }}/main/{{ global_var_billbox_ssl_cert }}"
+    dest_path: "{{ global_var_billbox_ssl_folder_path }}/{{ global_var_billbox_ssl_cert }}"
+  billboxkey:
+    bucket: "{{ global_var_mongo_s3_bucket }}"
+    objpath: "{{ global_var_billbox_ssl_bucket_key }}/main/{{ global_var_billbox_ssl_key }}"
+    dest_path: "{{ global_var_billbox_ssl_folder_path }}/{{ global_var_billbox_ssl_key }}"
+webserverfamily_nginx_ppa_version_enable: true
+webserverfamily_nginx_enable: true
+webserverfamily_nginx_install_details:
+  - nginx
+  - nginx-extras
+webserverfamily_nginx_push_configfiles_details:
+  maingninx:
+    src: "nginx/mainnginx.conf.j2"
+    dest: "/etc/nginx/nginx.conf"
+    owner: "root"
+    group: "root"
+    nginxuser: "www-data"
+    toplevelerrorlog: "/var/log/nginx/error.log"
+    dynamicmodule: true
+    nginx_secure: true
+    includeconfigs:
+      - "/etc/nginx/conf.d/*.conf"
+      - "/etc/nginx/sites-enabled/*.conf"
+  logconfig:
+    src: "nginx/nginx_log_format.conf.j2"
+    dest: "/etc/nginx/conf.d/jsonlog.conf"
+    owner: "root"
+    group: "root"
+    name: "jsonlog"
+  # lbconfig:
+  #   src: "nginx/nginx_load_balancer_conf.j2"
+  #   dest: "/etc/nginx/conf.d/loadbalancer.conf"
+  #   owner: "root"
+  #   group: "root"
+  #   name: "{{ global_var_proxy_default_lb_name }}"
+  #   targetlist: "{{ hostvars.localhost.reg_app_ird_cluster_ips_port.split(',') }}"
+  defaultvhost:
+    src: "nginx/_generic_vhost.conf.j2"
+    dest: "/etc/nginx/sites-available/{{ proxy_default_vhost_file }}"
+    owner: "root"
+    group: "root"
+    port: "{{ global_main_nginx_port }}"
+    ssl_enabled: false
+    domain_names:
+      - "_"
+    http2_settings: "default_server"
+    main_root_folder: "/var/www/html"
+    index_files:
+      - "index.html"
+      - "index.htm"
+      - "index.nginx-debian.html"
+    logging_enabled: true
+    access_log_file: "{{ proxy_default_log_access_file }}"
+    access_format: "jsonlog"
+    error_log_file: "{{ proxy_default_log_error_file }}"
+    root_level_adhoc_entries:
+      - "map_hash_max_size 26214"
+      - "map_hash_bucket_size 26214"
+    bodyinstructions:
+      - "resolver     172.21.0.2"
+      - "set          $upstream_endpoint http://{{ hostvars.localhost.reg_internal_alb_facts.load_balancers.0.dns_name }}:{{ global_var_app_port_for_proxies }}"
+    root_level_map_section_details:
+      httpcontenttype:
+        type: "$http_content_type"
+        name: "$effective_content_type"
+        entriesconfig:
+          - '"~."          $http_content_type'
+          - '"application/x-www-form-urlencoded;charset=UTF-8" "text/xml"'
+          - '"application/x-www-form-urlencoded" "text/xml"'
+          - 'default       "text/xml"'
+    locations:
+      - context: "/"
+        instructions:
+          - "proxy_set_header Content-Type $effective_content_type"
+          - "proxy_set_header X-Request-Id $connection-$msec-$remote_addr-$request_length"
+          - "proxy_pass $upstream_endpoint"
+
+webserverfamily_nginx_deletefiles_details:
+  - "/etc/nginx/sites-enabled/default"
+webserverfamily_nginx_common_enable_sites_details_hash:
+  main:
+    vhost: "{{ proxy_default_vhost_file }}"
+webserverfamily_nginx_common_validation_enable: true
+webserverfamily_nginx_common_restart_enabled: true
+elasticbeats_hearbeat_log_dir: "/var/log/heartbeat"
+elasticbeats_hearbeat_log_filename: "billboxbeat.log"
+elastibeats_heartbeat_version: "7.4.0"
+elasticbeats_remove_configuration_details:
+  - {
+    path: "/etc/heartbeat/heartbeat.reference.yml"
+  }
+elasticbeats_installation_details:
+- {
+    name: "heartbeat",
+    url: "https://artifacts.elastic.co/downloads/beats/heartbeat/heartbeat-oss-{{ elastibeats_heartbeat_version }}-amd64.deb"
+}
+elasticbeats_configuration_details:
+  heartbeat:
+    src: "heartbeat.yml.j2"
+    dest: "/etc/heartbeat/heartbeat.yml"
+    elasticsearch_hosts: ["188.138.41.214"]
+    path: "/"
+    elasticsearch_username: "admin"
+    elasticsearch_password: "admin"
+    kibana_host: "https://monitoring.doersops.com:443/kibana"
+    kibana_username: "kibanaadmin"
+    kibana_password: "kibanaadmin"
+    log_dir: "{{ elasticbeats_hearbeat_log_dir }}"
+    log_filename: "{{ elasticbeats_hearbeat_log_filename }}"
+    log_level: "debug"
+    log_to_files: True
+    log_to_syslog: False
+    monitor_path: "${path.config}/monitors.d/*.yml"
+    monitor_reload: True
+    monitor_reload_period: "15s" 
+elasticbeats_systemd_details: 
+  restart:
+      name: "heartbeat-elastic"
+      state: "restarted"
+# monitoringfamily_enable_datadog: true
+# monitoringfamily_datadog_install_dependencies_details:
+#   - apt-transport-https
+# monitoring_datadog_apt_repository_details:
+#   - {
+#       repo: "deb https://apt.datadoghq.com/ stable 6",
+#       filename: "datadog.list"
+#   } 
+# monitoring_datadog_apt_key_details:
+#   - {
+#     id: "A2923DFF56EDA6E76E55E492D3A80E30382E94DE",
+#     keyserver: "keyserver.ubuntu.com"
+#   }
+# monitoringfamily_datadog_install_agent_enable: true
+# monitoring_datadog_dd_api_key: "{{ vault_datadog_api_key }}"
+# monitoringfamily_datadog_systemd_details:
+#   - {
+#     name: "datadog-agent",
+#     state: "restarted"
+#   }
+monitoringfamily_install_file: "agent_installer.sh"
+monitoringfamily_r7insightops_config_path: "/opt/rapid7/ir_agent/components/insight_agent/common/config"
+monitoringfamily_enable_r7insightops: true
+monitoringfamily_r7insightops_agent_directory: "/tmp/insightops"
+monitoringfamily_r7insightops_agent_online_download_url: "https://s3.amazonaws.com/com.rapid7.razor.public/endpoint/agent/latest/linux/x86_64/agent_control_latest.sh"
+monitoringfamily_r7insightops_agent_download_details:
+  - {
+      dest: "/tmp/{{ monitoringfamily_install_file }}",
+      url: "{{ monitoringfamily_r7insightops_agent_online_download_url }}",
+      mode: '0755'
+    }
+monitoringfamily_r7insightops_agent_manual_install_details:
+  - {
+       execcmd: "./{{ monitoringfamily_install_file }} install_start  --config_path  {{ monitoringfamily_r7insightops_agent_directory }} --token {{ vault_rapid7insightops_agent_token }} ",
+       folder: "/tmp"
+    }
+monitoringfamily_r7insightops_dependent_packages:
+  - unzip
+monitoringfamily_r7insightops_create_directory_with_pem_details:
+  - {
+      path: "{{ monitoringfamily_r7insightops_agent_directory }}"
+  }
+# monitoringfamily_nginx_ansiblevhost_accesslog: "/var/log/nginx/access.log"
+# monitoringfamily_nginx_ansiblevhost_errorlog: "/var/log/nginx/error.log"
+monitoringfamily_r7insightops_agent_templating_details:
+  mainconfig:
+    dest: "{{ monitoringfamily_r7insightops_config_path }}/logging.json"
+    src: "rapid7_insightops/config.j2"
+    servername: "{{ inventory_hostname }}"
+    api_key: "{{ vault_rapid7insightops_apikey }}"
+    logentries:
+      appnginxaccess:
+        r7dest: "{{ global_var_insightops_log_set }}/Nginx_MainAccess_log"
+        enabled: "true"
+        name: "Nginx_MainAccess_log"
+        path: "{{ proxy_default_log_access_file }}"
+      appnginxerror:
+        r7dest: "{{ global_var_insightops_log_set }}/Nginx_MainError_log"
+        enabled: "true"
+        name: "Nginx_MainError_log"
+        path: "{{ proxy_default_log_error_file }}"

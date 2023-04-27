@@ -1,0 +1,18 @@
+jumpbox_mysql_execute_script_dependencies_apps_list:
+  - mysql-client
+  - python-mysqldb
+  - unzip
+  - python-pexpect
+
+
+jumpbox_mysql_execute_script_details:
+  - {
+    app_username: "{{ vault_mysql_scheduler_username }}",
+    app_password: "{{ vault_mysql_scheduler_password }}",
+    db_name: "{{ vault_mysql_scheduler_dbname }}",
+    db_host: "{{ groups[main_mysql_target_helper][0] }}",
+    db_port: "{{ global_var_mysql_port }}",
+    db_file_source: "files/quartz_scheduler_db_script.sql",
+    db_file_target: "/tmp/quartz_scheduler_db_script.sql"
+  }
+ 

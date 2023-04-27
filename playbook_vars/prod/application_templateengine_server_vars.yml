@@ -1,0 +1,74 @@
+
+
+bb_templateengine_server_enabled: true
+bb_active_region: "{{ global_var_ird_region }}"
+bb_active_priv_dns_namespace: "{{ global_var_priv_dns_namespace }}"
+bb_templateengine_server_task_family_name: "{{ global_var_country_code }}-{{ global_var_product }}-{{global_var_environment}}-{{ global_var_services_details.templateengineserver.name }}"
+bb_templateengine_server_task_executionRoleArn: "{{ hostvars.localhost.reg_ecs_role_facts.iam_roles.0.arn }}"
+bb_templateengine_server_task_networkmode: awsvpc
+bb_templateengine_server_task_ecsmode: FARGATE
+bb_templateengine_server_task_cpu: 512
+bb_templateengine_server_task_memory: 2048
+bb_templateengine_server_task_container_name: "{{ global_var_services_details.templateengineserver.name }}"
+bb_templateengine_server_task_container_image: "{{ global_var_services_details.templateengineserver.image }}"
+bb_templateengine_server_task_container_cpu: 512
+bb_templateengine_server_task_container_memory: 2048
+bb_templateengine_server_task_container_memoryReservation: 256
+# bb_templateengine_server_task_container_credentials_parameter: "{{ hostvars.localhost.reg_nexus_secrets_facts.ARN }}"
+bb_templateengine_server_task_container_credentials_parameter: "{{ hostvars.localhost.reg_dockerhub_secrets_facts.ARN }}"
+bb_templateengine_server_task_container_essential: true
+bb_templateengine_server_task_container_java_vars: 
+- "-Dspring.cloud.config.uri=http://{{ global_var_services_details.configserver.name }}.{{ global_var_priv_dns_namespace }}:{{ global_var_services_details.configserver.hostPort }}"
+- "-Dspring.application.name={{ global_var_services_details.templateengineserver.application_name }}"
+- "-Dspring.cloud.config.name={{ global_var_services_details.templateengineserver.config_name }}"
+- "-Dspring.cloud.client.hostname={{ global_var_services_details.templateengineserver.name }}.{{ global_var_priv_dns_namespace }}"
+- "-Dspring.cloud.config.profile={{ global_var_environment }},mysql-{{ global_var_environment }}"
+- "-Dspring.profiles.active={{ global_var_environment }}"
+- "-Dserver.port={{ global_var_services_details.templateengineserver.containerPort }}"
+- "-DLOGENTRIES_TOKEN={{ global_var_services_details.templateengineserver.logToken }}"
+- "-Dlogging.level.root=INFO"
+
+bb_templateengine_server_task_container_secretenv_definition:
+  dd_api_key:
+    id: "{{ global_var_environment }}_DD_API_KEY"
+    name: DD_API_KEY
+    content: "{{ vault_datadog_api_key }}"
+bb_templateengine_server_task_container_secretenv:
+  - name: "{{ bb_templateengine_server_task_container_secretenv_definition.dd_api_key.name }}"
+    valueFrom: "{{ bb_templateengine_server_task_container_secretenv_definition.dd_api_key.id }}"
+bb_templateengine_server_task_container_datadog:
+  - name: ECS_FARGATE
+    value: "true"
+  - name: DD_APM_ENABLED
+    value: "true"
+bb_templateengine_server_task_container_env:
+  - name: JAVA_VARS
+    value: "{{ bb_templateengine_server_task_container_java_vars | join(' ') }}"
+bb_templateengine_server_task_container_log_driver: awslogs
+bb_templateengine_server_task_container_log_logsgroup: "{{ global_var_log_group }}"
+bb_templateengine_server_task_container_log_logsregion: "{{ bb_active_region }}"
+bb_templateengine_server_task_container_log_logsprefix: "{{ global_var_country_code }}-{{ global_var_product }}-{{ global_var_environment }}-"
+bb_templateengine_alb_arn: "{{ hostvars.localhost.reg_alb_facts.load_balancers.0.load_balancer_arn }}"
+bb_templateengine_service_name: "{{global_var_country_code}}-{{global_var_product}}-{{global_var_environment}}-{{ global_var_services_details.templateengineserver.name }}-service"
+bb_templateengine_service_count: 1
+bb_templateengine_service_platform_version: 1.3.0
+bb_templateengine_service_autoscalling_policy_type: "TargetTrackingScaling"
+bb_templateengine_service_autoscalling_min_task: 1
+bb_templateengine_service_autoscalling_max_task: 3
+bb_templateengine_service_mem_autoscalling_policy_name: "{{ bb_templateengine_server_task_family_name }}-mem-as-policy"
+bb_templateengine_service_cpu_autoscalling_policy_name: "{{ bb_templateengine_server_task_family_name }}-cpu-as-policy"
+bb_templateengine_service_mem_autoscalling_tracking_scaling_target_value: 80
+bb_templateengine_service_cpu_autoscalling_tracking_scaling_target_value: 70
+bb_templateengine_service_mem_autoscalling_tracking_scaling_metric_spec: "ECSServiceAverageMemoryUtilization"
+bb_templateengine_service_cpu_autoscalling_tracking_scaling_metric_spec: "ECSServiceAverageCPUUtilization"
+bb_templateengine_service_mem_autoscalling_tracking_scalout_cooldown: 60
+bb_templateengine_service_mem_autoscalling_tracking_scalin_cooldown: 60
+bb_templateengine_service_cpu_autoscalling_tracking_scalout_cooldown: 120
+bb_templateengine_service_cpu_autoscalling_tracking_scalin_cooldown: 180
+bb_templateengine_service_awscli_enabled: false
+bb_templateengine_service_monitoringserver_image: "datadog/agent:latest"
+bb_templateengine_service_monitoringserver_name: "datadog-agent"
+# bb_templateengine_service_scheduled_autoscalling: true
+# bb_templateengine_service_wake_cron: "00 06 ? * MON-FRI *"
+# bb_templateengine_service_sleep_cron: "59 21 ? * MON-FRI *"
+

@@ -1,0 +1,25 @@
+- import_playbook: fact_gatherer_playbook.yml
+  tags:
+  - facts
+
+- hosts: "tag_Name_{{ global_var_country_code }}_{{ global_var_product }}_{{ global_var_environment }}_mongo"
+  become: True
+  gather_facts: true
+  user: "{{ global_var_ubuntu_user }}"
+  vars_files:
+  - "playbook_vars/{{ global_var_environment }}/databases_mongo_vars.yml"
+  - "playbook_vars/{{ global_var_environment }}/vault/{{ global_var_environment }}_variables.vault"
+  - "playbook_vars/{{ global_var_environment }}/global_vars.yml"
+  pre-tasks:
+    - name: Installing Pymongo
+      apt: 
+        name: python-pymongo
+        state: latest 
+    - name: Installing Pymongo3
+      apt: 
+        name: python3-pymongo
+        state: latest 
+  roles:
+    - util
+    - aws
+    - mongo_family

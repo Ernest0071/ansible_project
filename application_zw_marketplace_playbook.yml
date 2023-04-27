@@ -1,0 +1,332 @@
+- import_playbook: fact_gatherer_playbook.yml
+  tags:
+    - facts
+
+- import_playbook: aws_service_discovery_route53_playbook.yml
+  tags:
+    - facts
+
+- hosts: localhost
+  connection: local
+  gather_facts: yes
+  vars_files:
+    - playbook_vars/{{ global_var_environment }}/global_vars.yml
+    - playbook_vars/{{ global_var_environment }}/zw_marketplace_vars.yml
+    - playbook_vars/{{ global_var_environment }}/vault/{{ global_var_environment }}_variables.vault
+  tasks:
+
+    - name: Setup || Creating ECS Cluster
+      ecs_cluster:
+        name: "{{ global_var_ecs_clustername }}"
+        state: present
+        region: "{{ global_var_ecs_region }}"
+      when: global_var_ecs_clustername is defined 
+
+
+    - name: ZW Marketplace ||  Creating Parameter Store secrets 
+      aws_ssm_parameter_store:
+        name: "{{ item.value.id }}"
+        decryption: true 
+        region: "{{ global_var_ird_region }}"
+        string_type: "SecureString"
+        value: "{{ item.value.content }}"
+        state: "{{ item.value.state | default('present')}}"
+        overwrite_value: always # not required. choices: never;changed;always. Option to overwrite an existing value if it already exists.,String
+        description: "bb param store"
+      with_dict: "{{ zw_marketplace_server_task_container_secretenv_definition }}"
+
+    - name: ZW Marketplace || Creating zwmarketplaceServer task definition
+      ecs_taskdefinition:
+        state: present 
+        family: "{{ zw_marketplace_server_task_family_name }}"
+        region: "{{ global_var_ecs_region }}"
+        execution_role_arn: "{{ zw_marketplace_server_task_executionRoleArn }}" 
+        network_mode: "{{ zw_marketplace_server_task_networkmode }}"
+        launch_type: "{{ zw_marketplace_server_task_ecsmode }}"
+        cpu: "{{ zw_marketplace_server_task_cpu }}"
+        memory: "{{ zw_marketplace_server_task_memory }}"
+        force_create: yes        
+        containers: 
+        - name: "{{ global_var_services_details.zwmarketplaceserver.name }}"
+          image: "{{ zw_marketplace_server_task_container_image }}"
+          cpu: "{{ zw_marketplace_server_task_container_cpu }}"
+          memory: "{{ zw_marketplace_server_task_container_memory }}"
+          # memoryReservation: "{{ zw_marketplace_server_task_container_memoryReservation }}"
+          repositoryCredentials:
+            credentialsParameter: "{{ zw_marketplace_server_task_container_credentials_parameter }}"
+          portMappings:
+          - containerPort: "{{ global_var_services_details.zwmarketplaceserver.containerPort }}"
+            hostPort: "{{ global_var_services_details.zwmarketplaceserver.hostPort }}"
+          essential: "{{ zw_marketplace_server_task_container_essential }}"
+          environment: "{{ zw_marketplace_server_task_container_env }}"
+          logConfiguration:
+            logDriver: "{{ zw_marketplace_server_task_container_log_driver }}"
+            options:
+              awslogs-group: "{{ zw_marketplace_server_task_container_log_logsgroup }}"
+              awslogs-region: "{{ zw_marketplace_server_task_container_log_logsregion }}" 
+              awslogs-stream-prefix: "{{ zw_marketplace_server_task_container_log_logsprefix }}"
+
+        - name: "{{ global_var_services_details.corenginxserver.name }}"
+          image: "{{global_var_services_details.corenginxserver.image }}"
+          repositoryCredentials:
+            credentialsParameter: "{{ zw_marketplace_server_task_container_credentials_parameter }}"
+          portMappings:
+          - containerPort: "{{ global_var_services_details.corenginxserver.containerPort }}"
+            hostPort: "{{ global_var_services_details.corenginxserver.hostPort }}"
+          essential: "{{ zw_marketplace_sidecar_server_task_container_essential }}"
+          environment: "{{ zw_marketplacenginx_server_task_container_env }}"
+          logConfiguration:
+            logDriver: "{{ zw_marketplace_server_task_container_log_driver }}"
+            options:
+              awslogs-group: "{{ zw_marketplace_server_task_container_log_logsgroup }}"
+              awslogs-region: "{{ zw_marketplace_server_task_container_log_logsregion }}" 
+              awslogs-stream-prefix: "{{ zw_marketplace_server_task_container_log_logsprefix }}"
+
+        - name: "{{ global_var_services_details.monitoringserver.name }}"
+          image: "{{ global_var_services_details.monitoringserver.image }}"
+          essential: false
+          secrets: "{{ zw_marketplace_server_task_container_secretenv }}"
+          environment: "{{ zw_marketplace_server_task_container_mon_env }}"
+      register: reg_marketplace_servertaskdef
+
+    - name: ZW Marketplace || Obtaining target group facts
+      elb_target_group_info:
+        names: "{{ zw_marketplace_targetgroup_name }}"
+        region: "{{ global_var_ecs_region }}"
+      register: reg_zw_marketplace_target_group_facts
+
+    - debug: var=reg_zw_marketplace_target_group_facts
+
+    - name: ZW Marketplace || Creating marketplace target group
+      elb_target_group:
+        name: "{{ zw_marketplace_targetgroup_name }}"
+        state: present 
+        protocol: "{{ zw_marketplace_targetgroup_protocol }}"
+        successful_response_codes: "{{ zw_marketplace_targetgroup_success_http_code }}"
+        wait_timeout: 200 
+        health_check_interval: "{{ zw_marketplace_targetgroup_hc_interval }}"
+        modify_targets: true 
+        healthy_threshold_count: "{{ zw_marketplace_targetgroup_hc_healthycount }}"
+        health_check_path: "{{ zw_marketplace_targetgroup_hc_path }}"
+        health_check_protocol: "{{ zw_marketplace_targetgroup_hc_protocol }}" 
+        unhealthy_threshold_count: "{{ zw_marketplace_targetgroup_hc_unhealthycount }}"
+        region: "{{ global_var_ecs_region }}"
+        target_type: "{{ zw_marketplace_targetgroup_targettype }}"
+        port: 80
+        vpc_id: "{{ hostvars.localhost.reg_vpc_facts.vpcs.0.id }}" 
+        # wait: false 
+        health_check_timeout: "{{ zw_marketplace_targetgroup_hc_timeout }}"
+      register: reg_marketplace_targetgroup
+      when:
+        - reg_zw_marketplace_target_group_facts.target_groups | length == 0
+
+    - name: debug new target group fact
+      debug: var=reg_marketplace_targetgroup
+
+    - name: ZW Marketplace || Associating target group to a ALB listener for marketplace if target group doesn't  already exists
+      shell: > 
+          aws elbv2 create-rule --listener-arn {{ hostvars.localhost.reg_alb_facts.load_balancers.0.listeners.0.listener_arn }}
+          --priority {{ global_var_services_details.zwmarketplaceserver.albPriority }}
+          --conditions Field=host-header,Values={{ global_var_services_details.zwmarketplaceserver.domain }}
+          --actions Type=forward,TargetGroupArn={{ reg_marketplace_targetgroup.target_group_arn }}
+          --region {{ global_var_ecs_region }}
+          --profile {{ lookup('env','AWS_PROFILE') }}
+      when:
+        - global_awx_ad_hoc_shell_switch is defined
+        - not global_awx_ad_hoc_shell_switch 
+        - reg_zw_marketplace_target_group_facts.target_groups | length == 0
+
+    - name: ZW Marketplace || Associating target group to a ALB listener for marketplace with awscli if target group doesn't already exists
+      shell: > 
+          aws elbv2 create-rule --listener-arn {{ hostvars.localhost.reg_alb_facts.load_balancers.0.listeners.0.listener_arn }}
+          --priority {{ global_var_services_details.zwmarketplaceserver.albPriority }}
+          --conditions Field=host-header,Values={{ global_var_services_details.zwmarketplaceserver.domain }}
+          --actions Type=forward,TargetGroupArn={{ reg_marketplace_targetgroup.target_group_arn }}
+          --region {{ global_var_ecs_region }}
+      when:
+        - global_awx_ad_hoc_shell_switch is defined
+        - global_awx_ad_hoc_shell_switch
+        - reg_zw_marketplace_target_group_facts.target_groups | length == 0
+      environment:
+        AWS_ACCESS_KEY_ID: "{{ vault_aws_access_key }}"
+        AWS_SECRET_ACCESS_KEY: "{{ vault_aws_access_secret }}"
+
+
+    - name: ZW Marketplace || Creating or Updating the ECS service zwmarketplaceserver if target group doesn't already exists
+      ecs_service:
+        state: present 
+        name: "{{ zw_marketplace_service_name }}"
+        # service_registries:
+        #   - registryArn: "{{ hostvars.localhost.reg_marketplace_sd_dns_details.0.Arn }}"
+        network_configuration:
+            assign_public_ip: yes
+            security_groups: "{{ hostvars.localhost.reg_app_secgroup_ids_facts | list }}"
+            subnets: "{{ hostvars.localhost.reg_app_subnet_ids_facts | list }}"
+        desired_count: "{{ zw_marketplace_service_count }}"
+        cluster: "{{ global_var_ecs_clustername }}"
+        task_definition: "{{ zw_marketplace_server_task_family_name }}:{{ reg_marketplace_servertaskdef.taskdefinition.revision }}"
+        region: "{{ global_var_ecs_region }}"
+        load_balancers:
+          - targetGroupArn: "{{ reg_marketplace_targetgroup.target_group_arn }}"
+            # containerName: "{{ global_var_services_details.zwmarketplaceserver.name }}"
+            # containerPort: "{{ global_var_services_details.zwmarketplaceserver.hostPort }}"
+            containerName: "{{ global_var_services_details.corenginxserver.name }}"
+            containerPort: "{{ global_var_services_details.corenginxserver.hostPort }}"
+        launch_type: "{{ zw_marketplace_server_task_ecsmode }}"
+        health_check_grace_period_seconds: "{{ zw_marketplace_service_hc_graceperiod }}"
+      when:
+        - reg_zw_marketplace_target_group_facts.target_groups | length == 0
+       
+    - name: ZW Marketplace || Associating target group to a ALB listener for marketplace if target group already exists
+      shell: > 
+          aws elbv2 create-rule --listener-arn {{ hostvars.localhost.reg_alb_facts.load_balancers.0.listeners.0.listener_arn }}
+          --priority {{ global_var_services_details.zwmarketplaceserver.albPriority }}
+          --conditions Field=host-header,Values={{ global_var_services_details.zwmarketplaceserver.domain }}
+          --actions Type=forward,TargetGroupArn={{ reg_zw_marketplace_target_group_facts.target_groups.0.target_group_arn }}
+          --region {{ global_var_ecs_region }}
+          --profile {{ lookup('env','AWS_PROFILE') }}
+      when:
+        - global_awx_ad_hoc_shell_switch is defined
+        - not global_awx_ad_hoc_shell_switch 
+        - reg_zw_marketplace_target_group_facts.target_groups | length != 0
+
+    - name: ZW Marketplace || Associating target group to a ALB listener for marketplace with awscli if target group already exists
+      shell: > 
+          aws elbv2 create-rule --listener-arn {{ hostvars.localhost.reg_alb_facts.load_balancers.0.listeners.0.listener_arn }}
+          --priority {{ global_var_services_details.zwmarketplaceserver.albPriority }}
+          --conditions Field=host-header,Values={{ global_var_services_details.zwmarketplaceserver.domain }}
+          --actions Type=forward,TargetGroupArn={{ reg_zw_marketplace_target_group_facts.target_groups.0.target_group_arn }}
+          --region {{ global_var_ecs_region }}
+      when:
+        - global_awx_ad_hoc_shell_switch is defined
+        - global_awx_ad_hoc_shell_switch
+        - reg_zw_marketplace_target_group_facts.target_groups | length != 0
+      environment:
+        AWS_ACCESS_KEY_ID: "{{ vault_aws_access_key }}"
+        AWS_SECRET_ACCESS_KEY: "{{ vault_aws_access_secret }}" 
+
+    - name: ZW Marketplace || Creating or Updating the ECS service zwmarketplaceserver if target group already exists
+      ecs_service:
+        state: present 
+        name: "{{ zw_marketplace_service_name }}"
+        # service_registries:
+        #   - registryArn: "{{ hostvars.localhost.reg_marketplace_sd_dns_details.0.Arn }}"
+        network_configuration:
+            assign_public_ip: yes
+            security_groups: "{{ hostvars.localhost.reg_app_secgroup_ids_facts | list }}"
+            subnets: "{{ hostvars.localhost.reg_app_subnet_ids_facts | list }}"
+        desired_count: "{{ zw_marketplace_service_count }}"
+        cluster: "{{ global_var_ecs_clustername }}"
+        task_definition: "{{ zw_marketplace_server_task_family_name }}:{{ reg_marketplace_servertaskdef.taskdefinition.revision }}"
+        region: "{{ global_var_ecs_region }}"
+        load_balancers:
+          - targetGroupArn: "{{ reg_zw_marketplace_target_group_facts.target_groups.0.target_group_arn }}"
+            # containerName: "{{ global_var_services_details.zwmarketplaceserver.name }}"
+            # containerPort: "{{ global_var_services_details.zwmarketplaceserver.hostPort }}"
+            containerName: "{{ global_var_services_details.corenginxserver.name }}"
+            containerPort: "{{ global_var_services_details.corenginxserver.hostPort }}"
+        launch_type: "{{ zw_marketplace_server_task_ecsmode }}"
+        health_check_grace_period_seconds: "{{ zw_marketplace_service_hc_graceperiod }}"
+      when:
+        - reg_zw_marketplace_target_group_facts.target_groups | length != 0
+
+    - name: ZW Marketplace || Creating marketplace MEM Scalling Policy for {{ global_var_environment }}
+      aws_application_scaling_policy:
+        state: present
+        policy_name: "{{ zw_marketplace_service_mem_autoscalling_policy_name }}"
+        service_namespace: ecs
+        region: "{{ global_var_ecs_region }}"
+        resource_id: service/{{ global_var_ecs_clustername }}/{{ zw_marketplace_service_name }}
+        scalable_dimension: ecs:service:DesiredCount
+        policy_type: "{{ zw_marketplace_service_autoscalling_policy_type }}"
+        minimum_tasks: "{{ zw_marketplace_service_autoscalling_min_task }}"
+        maximum_tasks: "{{ zw_marketplace_service_autoscalling_max_task }}"
+        target_tracking_scaling_policy_configuration:
+          TargetValue: "{{ zw_marketplace_service_mem_autoscalling_tracking_scaling_target_value }}"
+          PredefinedMetricSpecification:
+            PredefinedMetricType: "{{ zw_marketplace_service_mem_autoscalling_tracking_scaling_metric_spec }}"
+          ScaleOutCooldown: "{{ zw_marketplace_service_mem_autoscalling_tracking_scalout_cooldown }}"
+          ScaleInCooldown: "{{ zw_marketplace_service_mem_autoscalling_tracking_scalin_cooldown }}"
+
+    - name: ZW Marketplace || Creating marketplace CPU Scalling Policy for {{ global_var_environment }}
+      aws_application_scaling_policy:
+        state: present
+        policy_name: "{{ zw_marketplace_service_cpu_autoscalling_policy_name }}"
+        service_namespace: ecs
+        region: "{{ global_var_ecs_region }}"
+        resource_id: service/{{ global_var_ecs_clustername }}/{{ zw_marketplace_service_name }}
+        scalable_dimension: ecs:service:DesiredCount
+        policy_type: "{{ zw_marketplace_service_autoscalling_policy_type }}"
+        minimum_tasks: "{{ zw_marketplace_service_autoscalling_min_task }}"
+        maximum_tasks: "{{ zw_marketplace_service_autoscalling_max_task }}"
+        target_tracking_scaling_policy_configuration:
+          TargetValue: "{{ zw_marketplace_service_cpu_autoscalling_tracking_scaling_target_value }}"
+          PredefinedMetricSpecification:
+            PredefinedMetricType: "{{ zw_marketplace_service_cpu_autoscalling_tracking_scaling_metric_spec }}"
+          ScaleOutCooldown: "{{ zw_marketplace_service_cpu_autoscalling_tracking_scalout_cooldown }}"
+          ScaleInCooldown: "{{ zw_marketplace_service_cpu_autoscalling_tracking_scalin_cooldown }}"
+
+
+    - name: ZW Marketplace || Creating a Sleep Time scheduled application autoscalling for ZW Marketplace
+      shell: > 
+          aws application-autoscaling put-scheduled-action --service-namespace ecs
+          --scalable-dimension ecs:service:DesiredCount
+          --resource-id service/{{ global_var_ecs_clustername }}/{{ zw_marketplace_service_name }}
+          --scheduled-action-name scheduled-gh-office-{{ zw_marketplace_service_name }}-off-time
+          --schedule "cron({{ zw_marketplace_service_sleep_cron | default('00 20 ? * MON-FRI *') }})"
+          --scalable-target-action MinCapacity={{ zw_marketplace_service_scheduled_sleep_autoscalling_min_task | default(0) }},MaxCapacity={{ zw_marketplace_service_scheduled_sleep_autoscalling_max_task | default(0) }}
+          --region {{ global_var_ecs_region }}
+          --profile {{ lookup('env','AWS_PROFILE') }}
+      when:
+        - global_awx_ad_hoc_shell_switch is defined
+        - not global_awx_ad_hoc_shell_switch
+        - zw_marketplace_service_scheduled_autoscalling | default(false)    
+
+    - name: ZW Marketplace Server || Creating a Sleep Time scheduled application autoscalling for ZW Marketplace with awscli
+      shell: > 
+          aws application-autoscaling put-scheduled-action --service-namespace ecs
+          --scalable-dimension ecs:service:DesiredCount
+          --resource-id service/{{ global_var_ecs_clustername }}/{{ zw_marketplace_service_name }}
+          --scheduled-action-name scheduled-gh-office-{{ zw_marketplace_service_name }}-off-time
+          --schedule "cron({{ zw_marketplace_service_sleep_cron | default('00 20 ? * MON-FRI *') }})"
+          --scalable-target-action MinCapacity={{ zw_marketplace_service_scheduled_sleep_autoscalling_min_task | default(0) }},MaxCapacity={{ zw_marketplace_service_scheduled_sleep_autoscalling_max_task | default(0) }}
+          --region {{ global_var_ecs_region }}
+      when:
+        - global_awx_ad_hoc_shell_switch is defined
+        - global_awx_ad_hoc_shell_switch
+        - zw_marketplace_service_scheduled_autoscalling | default(false)
+      environment:
+        AWS_ACCESS_KEY_ID: "{{ vault_aws_access_key }}"
+        AWS_SECRET_ACCESS_KEY: "{{ vault_aws_access_secret }}" 
+
+    - name: ZW Marketplace || Creating a Wake Time scheduled application autoscalling for ZW Marketplace
+      shell: > 
+          aws application-autoscaling put-scheduled-action --service-namespace ecs
+          --scalable-dimension ecs:service:DesiredCount
+          --resource-id service/{{ global_var_ecs_clustername }}/{{ zw_marketplace_service_name }}
+          --scheduled-action-name scheduled-gh-office-{{ zw_marketplace_service_name }}-wake-time
+          --schedule "cron({{ zw_marketplace_service_wake_cron | default('00 08 ? * MON-FRI *') }})"
+          --scalable-target-action MinCapacity={{ zw_marketplace_service_scheduled_wake_autoscalling_min_task | default(1) }},MaxCapacity={{ zw_marketplace_service_scheduled_wake_autoscalling_max_task | default(1) }}
+          --region {{ global_var_ecs_region }}
+          --profile {{ lookup('env','AWS_PROFILE') }}
+      when:
+        - global_awx_ad_hoc_shell_switch is defined
+        - not global_awx_ad_hoc_shell_switch
+        - zw_marketplace_service_scheduled_autoscalling | default(false)    
+
+    - name: ZW Marketplace Server || Creating a Wake Time scheduled application autoscalling for ZW Marketplace with awscli
+      shell: > 
+          aws application-autoscaling put-scheduled-action --service-namespace ecs
+          --scalable-dimension ecs:service:DesiredCount
+          --resource-id service/{{ global_var_ecs_clustername }}/{{ zw_marketplace_service_name }}
+          --scheduled-action-name scheduled-gh-office-{{ zw_marketplace_service_name }}-wake-time
+          --schedule "cron({{ zw_marketplace_service_wake_cron | default('00 08 ? * MON-FRI *') }})"
+          --scalable-target-action MinCapacity={{ zw_marketplace_service_scheduled_wake_autoscalling_min_task | default(1) }},MaxCapacity={{ zw_marketplace_service_scheduled_wake_autoscalling_max_task | default(1) }}
+          --region {{ global_var_ecs_region }}
+      when:
+        - global_awx_ad_hoc_shell_switch is defined
+        - global_awx_ad_hoc_shell_switch
+        - zw_marketplace_service_scheduled_autoscalling | default(false)
+      environment:
+        AWS_ACCESS_KEY_ID: "{{ vault_aws_access_key }}"
+        AWS_SECRET_ACCESS_KEY: "{{ vault_aws_access_secret }}" 

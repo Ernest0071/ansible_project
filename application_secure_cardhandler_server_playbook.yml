@@ -1,0 +1,444 @@
+---
+- import_playbook: fact_gatherer_playbook.yml
+  tags:
+    - facts
+
+- import_playbook: aws_service_discovery_route53_playbook.yml
+  tags:
+    - facts
+
+- hosts: localhost
+  connection: local
+  gather_facts: yes
+  vars_files:
+    - playbook_vars/{{ global_var_environment }}/global_vars.yml
+    - playbook_vars/{{ global_var_environment }}/securecardhandler_vars.yml
+    - playbook_vars/{{ global_var_environment }}/vault/{{ global_var_environment }}_variables.vault  
+  tasks:
+    - name: Billbox Secure CardHandler || Extracting ARN from service discovery
+      set_fact:
+        reg_cardhandler_sd_dns_details: "{{ ServiceListJson | json_query(\"Services[?Name=='\" + global_var_services_details.securecardhandlerserver.name+\"']\") }}"
+        # reg_cardhandler_app_vault_plain_token: "{{ reg_hashivault_cardhandler_apptoken_fromfile.stdout }}"
+
+    - name: Billbox Secure CardHandler || Clearing Checking Folder
+      file:
+          path: "{{ global_var_configuration_git_dir }}"
+          state: absent
+      ignore_errors: true
+
+    # - debug: var="lookup('env','$USER')"
+    # - name: Billbox Secure CardHandler || Creating billbox configuration git directory
+    #   file:
+    #     path: "{{ item.path }}" 
+    #     recurse: yes 
+    #     state: directory
+    #     owner: "{{ ansible_user }}"
+    #     mode: "{{ item.mode | default(0755) }}" 
+    #   when: global_var_configuration_git_create_folders_details is defined
+    #   with_items: "{{ global_var_configuration_git_create_folders_details | default({}) }}"
+      
+
+    # - name: Billbox Secure CardHandler || Checking out the properties files
+    #   git:
+    #     repo: "{{ item.repo }}"
+    #     dest: "{{ item.dir }}"
+    #     version: "{{ item.version }}"
+    #     force: yes
+    #   when: global_var_configuration_git_details is defined
+    #   with_items: "{{ global_var_configuration_git_details }}"
+
+
+#     - name: Billbox Secure CardHandler || Encryption cardhandler Mysql Jdbc Username
+#       shell: "{{ spring_cloud_cli_path | default('') }}spring encrypt '{{ vault_mysql_cardhandler_username }}' --key {{ vault_configserver_encryption_key }}"
+#       register: reg_bb_securecardhandler_mysql_jdbc_username
+#       environment:
+#         JAVA_HOME: "{{ java_home_path | default(lookup('env', 'JAVA_HOME')) }}"  
+#       # when: zw_slydepay_configserver_cardhandler_mysql is defined
+# # "mongodb://{{ vault_mongo_app_username }}:{{ vault_mongo_app_password }}@{{ hostvars.localhost.reg_mongo_cluster_uri }}/{{ vault_mongo_app_dbname }}"
+# #jdbcUrl: "jdbc:mysql://{{ hostvars.localhost.reg_db_uri_and_port }}/{{ vault_main_rds_app_dbname }}?zeroDateTimeBehavior=ROUND&useSSL=false&failOverReadOnly=false"
+#     - name: Billbox Secure CardHandler || Encryption cardhandler Mysql Jdbc Password
+#       shell: "{{ spring_cloud_cli_path | default('') }}spring encrypt '{{ vault_mysql_cardhandler_password }}' --key {{ vault_configserver_encryption_key }}"
+#       register: reg_bb_securecardhandler_mysql_jdbc_password
+#       environment:
+#         JAVA_HOME: "{{ java_home_path | default(lookup('env', 'JAVA_HOME')) }}"  
+#       # when: zw_slydepay_configserver_cardhandler_mysql is defined
+
+#     - name: Billbox Secure CardHandler || Encryption cardhandler Mysql Jdbc uri
+#       shell: "{{ spring_cloud_cli_path | default('') }}spring encrypt 'jdbc:mysql://{{ hostvars.localhost.reg_mysql_cluster_uri }}/{{ vault_mysql_cardhandler_dbname }}?zeroDateTimeBehavior=ROUND&useSSL=false&failOverReadOnly=false' --key {{ vault_configserver_encryption_key }}"
+#       register: reg_bb_securecardhandler_mysql_jdbc_uri
+#       environment:
+#         JAVA_HOME: "{{ java_home_path | default(lookup('env', 'JAVA_HOME')) }}"  
+#       # when: zw_slydepay_configserver_cardhandler_mysql is defined
+
+#     - name: Billbox Secure CardHandler || Encryption cardhandler Mongo dbname
+#       shell: "{{ spring_cloud_cli_path | default('') }}spring encrypt '{{ vault_mongo_core_dbname }}' --key {{ vault_configserver_encryption_key }}"
+#       register: reg_bb_securecardhandler_mongo_dbname
+#       environment:
+#         JAVA_HOME: "{{ java_home_path | default(lookup('env', 'JAVA_HOME')) }}"  
+
+#     - name: Billbox Secure CardHandler || Encryption cardhandler Mongo Username
+#       shell: "{{ spring_cloud_cli_path | default('') }}spring encrypt '{{ vault_mongo_cardhandler_username }}' --key {{ vault_configserver_encryption_key }}"
+#       register: reg_bb_securecardhandler_mongo_username
+#       environment:
+#         JAVA_HOME: "{{ java_home_path | default(lookup('env', 'JAVA_HOME')) }}"  
+#       # when: zw_slydepay_configserver_cardhandler_mysql is defined
+
+#     - name: Billbox Secure CardHandler || Encryption cardhandler Mongo Password
+#       shell: "{{ spring_cloud_cli_path | default('') }}spring encrypt '{{ vault_mongo_cardhandler_password }}' --key {{ vault_configserver_encryption_key }}"
+#       register: reg_bb_securecardhandler_mongo_password
+#       environment:
+#         JAVA_HOME: "{{ java_home_path | default(lookup('env', 'JAVA_HOME')) }}"  
+#       # when: zw_slydepay_configserver_cardhandler_mysql is defined
+
+#     - name: Billbox Secure CardHandler || Encryption CardHandler MongoDB URI
+#       shell: "{{ spring_cloud_cli_path | default('') }}spring encrypt 'mongodb://{{ vault_mongo_cardhandler_username }}:{{ vault_mongo_cardhandler_password }}@{{ hostvars.localhost.reg_mongo_cluster_uri }}/{{ vault_mongo_core_dbname }}' --key {{ vault_configserver_encryption_key }}"
+#       register: reg_bb_securecardhandler_mongo_uri
+#       environment:
+#         JAVA_HOME: "{{ java_home_path | default(lookup('env', 'JAVA_HOME')) }}"  
+
+
+#     - name: Billbox Secure CardHandler || Setting Encrypted CardHandler credential facts
+#       set_fact:
+#         reg_bb_securecardhandler_mysql_jdbc_username: "{{ reg_bb_securecardhandler_mysql_jdbc_username.stdout }}"
+#         reg_bb_securecardhandler_mysql_jdbc_password: "{{ reg_bb_securecardhandler_mysql_jdbc_password.stdout }}"
+#         reg_bb_securecardhandler_mysql_jdbc_uri: "{{ reg_bb_securecardhandler_mysql_jdbc_uri.stdout }}"
+#         reg_bb_securecardhandler_mongo_dbname: "{{ reg_bb_securecardhandler_mongo_dbname.stdout }}"
+#         reg_bb_securecardhandler_mongo_username: "{{ reg_bb_securecardhandler_mongo_username.stdout }}"
+#         reg_bb_securecardhandler_mongo_password: "{{ reg_bb_securecardhandler_mongo_password.stdout }}"
+#         reg_bb_securecardhandler_mongo_uri: "{{ reg_bb_securecardhandler_mongo_uri.stdout }}"
+
+    # - name: Billbox Secure CardHandler || Creating CardHandler config file
+    #   template: 
+    #     dest: "{{ global_var_configuration_git_dir }}/{{global_var_configserver_folder}}/{{ global_var_services_details.securecardhandlerserver.config_name }}-{{ global_var_environment }}.properties"
+    #     src: "templates/{{ global_var_services_details.securecardhandlerserver.config_name }}.properties" 
+
+
+    # - name: Billbox Secure CardHandler || Creating CardHandler mysql config file
+    #   template: 
+    #     dest: "{{ global_var_configuration_git_dir }}/{{global_var_configserver_folder}}/{{ global_var_services_details.securecardhandlerserver.config_name }}-mysql-{{ global_var_environment }}.properties"
+    #     src: "templates/{{ global_var_services_details.securecardhandlerserver.config_name }}-mysql.properties" 
+
+
+    # - name: Billbox Secure CardHandler || Creating CardHandler mongo config file
+    #   template: 
+    #     dest: "{{ global_var_configuration_git_dir }}/{{global_var_configserver_folder}}/{{ global_var_services_details.securecardhandlerserver.config_name }}-mongo-{{ global_var_environment }}.properties"
+    #     src: "templates/{{ global_var_services_details.securecardhandlerserver.config_name }}-mongo.properties" 
+
+    # - name: Billbox Secure CardHandler || Staging git changes
+    #   shell: >
+    #       git add *
+    #   args:
+    #     chdir: "{{ global_var_configuration_git_dir }}"
+    #   ignore_errors: true
+
+
+    # - name: Billbox Secure CardHandler || Committing git repository
+    #   shell: >
+    #       git commit 
+    #       -m 'committing new tasks {{ global_var_services_details.securecardhandlerserver.name }}
+    #       and cardhandler specific variable concens'
+    #   args:
+    #     chdir: "{{ global_var_configuration_git_dir }}"
+    #   ignore_errors: true
+
+
+    # - name: Billbox Secure CardHandler || Pushing cardhandler changes to remote
+    #   shell: >
+    #       git push
+    #   args:
+    #     chdir: "{{ global_var_configuration_git_dir }}"
+    #   ignore_errors: true
+
+
+    - name: Billbox Secure CardHandler || Creating Parameter Store secrets for CardHandler
+      aws_ssm_parameter_store:
+        name: "{{ item.value.id }}"
+        decryption: true 
+        region: "{{ smartgrid_active_region }}"
+        string_type: "{{ item.value.stringtype | default('SecureString') }}"
+        value: "{{ item.value.content }}"
+        state: "{{ item.value.state | default('present')}}"
+        overwrite_value: always # not required. choices: never;changed;always. Option to overwrite an existing value if it already exists.,String
+        description: "{{ item.value.description | default('description') }}"
+      with_dict: "{{ bb_securecardhandler_server_task_container_secret_rawenv }}"
+      register: reg_bb_securecardhandler_param_store
+      no_log: true      
+
+
+    - name: Common || First target group facts pull
+      elb_target_group_info:
+        names: "{{ bb_securecardhandler_targetgroup_name }}"
+        region: "{{ global_var_ecs_region }}"
+      register: reg_bb_securecardhandler_target_group_facts
+
+    - name: Billbox Secure CardHandler || Creating billboxcardhandler target group
+      elb_target_group:
+        name: "{{ bb_securecardhandler_targetgroup_name }}"
+        state: present 
+        protocol: "{{ bb_securecardhandler_targetgroup_protocol }}"
+        successful_response_codes: "{{ bb_securecardhandler_targetgroup_success_http_code }}"
+        wait_timeout: 200 
+        health_check_interval: "{{ bb_securecardhandler_targetgroup_hc_interval }}"
+        modify_targets: true 
+        healthy_threshold_count: "{{ bb_securecardhandler_targetgroup_hc_healthycount }}"
+        health_check_path: "{{ bb_securecardhandler_targetgroup_hc_path }}"
+        health_check_protocol: "{{ bb_securecardhandler_targetgroup_hc_protocol }}" 
+        health_check_port: "{{ bb_securecardhandler_targetgroup_hc_port }}" 
+        unhealthy_threshold_count: "{{ bb_securecardhandler_targetgroup_hc_unhealthycount }}"
+        region: "{{ smartgrid_active_region }}"
+        target_type: "{{ bb_securecardhandler_targetgroup_targettype }}"
+        port: "{{ bb_securecardhandler_proxyserver_listen_port }}"
+        vpc_id: "{{ hostvars.localhost.reg_vpc_facts.vpcs.0.id }}" 
+        # wait: false 
+        health_check_timeout: "{{ bb_securecardhandler_targetgroup_hc_timeout }}"
+      register: reg_billboxcardhandler_targetgroup
+      when:
+        - reg_bb_securecardhandler_target_group_facts.target_groups | length ==0
+
+    - name: Billbox Secure CardHandler || Creating CardHandler task definition
+      ecs_taskdefinition:
+        state: present 
+        family: "{{ bb_securecardhandler_server_task_family_name }}"
+        region: "{{ smartgrid_active_region }}"
+        execution_role_arn: "{{ bb_securecardhandler_server_task_executionRoleArn }}" 
+        network_mode: "{{ bb_securecardhandler_server_task_networkmode }}"
+        launch_type: "{{ bb_securecardhandler_server_task_ecsmode }}"
+        cpu: "{{ bb_securecardhandler_server_task_cpu }}"
+        memory: "{{ bb_securecardhandler_server_task_memory }}"
+        force_create: yes         
+        containers: 
+
+        - name: "{{ global_var_services_details.monitoringserver.name }}"
+          image: "{{ global_var_services_details.monitoringserver.image }}"
+          essential: false
+          secrets: "{{ bb_securecardhandler_server_task_container_mon_secretenv }}"
+          environment: "{{ bb_securecardhandler_server_task_container_mon_env }}"
+
+        - name: "{{ global_var_services_details.securecardhandlerserver.name }}"
+          image: "{{ bb_securecardhandler_server_task_container_image }}"
+          cpu: "{{ bb_securecardhandler_server_task_container_cpu }}"
+          memory: "{{ bb_securecardhandler_server_task_container_memory }}"
+          memoryReservation: "{{ bb_securecardhandler_server_task_container_memoryReservation }}"
+          repositoryCredentials:
+            credentialsParameter: "{{ bb_securecardhandler_server_task_container_credentials_parameter }}"
+          portMappings:
+          - containerPort: "{{ global_var_services_details.securecardhandlerserver.containerPort }}"
+            hostPort: "{{ global_var_services_details.securecardhandlerserver.hostPort }}"
+          essential: "{{ bb_securecardhandler_server_task_container_essential }}"
+          secrets: "{{ bb_securecardhandler_server_task_container_secretenv }}"
+          environment: "{{ bb_securecardhandler_server_task_container_env }}"
+          logConfiguration:
+            logDriver: "{{ bb_securecardhandler_server_task_container_log_driver }}"
+            options:
+              awslogs-group: "{{ bb_securecardhandler_server_task_container_log_logsgroup }}"
+              awslogs-region: "{{ bb_securecardhandler_server_task_container_log_logsregion }}" 
+              awslogs-stream-prefix: "{{ bb_securecardhandler_server_task_container_log_logsprefix }}"
+
+        - name: "{{ global_var_services_details.proxynginxserver.name }}"
+          image: "{{global_var_services_details.proxynginxserver.image }}"
+          repositoryCredentials:
+            credentialsParameter: "{{ bb_securecardhandler_server_task_container_credentials_parameter }}"
+          portMappings:
+          - containerPort: "{{ bb_securecardhandler_proxyserver_listen_port }}"
+            hostPort: "{{ bb_securecardhandler_proxyserver_listen_port }}"
+          essential: "{{ bb_securecardhandler_sidecar_server_task_container_essential }}"
+          environment: "{{ bb_securecardhandler_nginx_server_task_container_env }}"
+          logConfiguration:
+            logDriver: "{{ bb_securecardhandler_server_task_container_log_driver }}"
+            options:
+              awslogs-group: "{{ bb_securecardhandler_server_task_container_log_logsgroup }}"
+              awslogs-region: "{{ bb_securecardhandler_server_task_container_log_logsregion }}" 
+              awslogs-stream-prefix: "{{ bb_securecardhandler_server_task_container_log_logsprefix }}"
+      register: reg_bb_securecardhandler_servertaskdef
+
+    - name: Common || Second target group facts pull
+      elb_target_group_info:
+        names: "{{ bb_securecardhandler_targetgroup_name }}"
+        region: "{{ global_var_ecs_region }}"
+      register: reg_bb_securecardhandler_target_group_facts
+
+    - debug: var=reg_bb_securecardhandler_target_group_facts.target_groups
+    
+    
+    - name: Billbox Secure CardHandler || Creating an NLB and attach a listener
+      elb_network_lb:
+        name: "{{ global_var_mtls_alb_name }}"
+        region: "{{ smartgrid_active_region }}"
+        subnets: "{{ hostvars.localhost.reg_app_subnet_ids_facts }}"
+        listeners:
+          - Protocol: TCP
+            # Certificates:
+            #   - CertificateArn: "{{ global_var_alb_certificate_arn }}"
+            Port: 443 
+            DefaultActions:
+              - Type: forward
+                TargetGroupName: "{{ bb_securecardhandler_targetgroup_name }}"
+        state: present
+    # - name: Billbox Secure CardHandler || Associating target group to a ALB listener
+    #   shell: > 
+    #       aws elbv2 create-rule --listener-arn {{ hostvars.localhost.reg_mtls_alb_facts.load_balancers.0.listeners.0.listener_arn }}
+    #       --actions Type=forward,TargetGroupArn={{ reg_bb_securecardhandler_target_group_facts.target_groups.0.target_group_arn }}
+    #       --region {{ smartgrid_active_region }}
+    #       --profile {{ lookup('env','AWS_PROFILE') }}
+    #   when:
+    #     - global_awx_ad_hoc_shell_switch is defined
+    #     - not global_awx_ad_hoc_shell_switch
+  
+
+    # - name: Billbox Secure CardHandler || Associating target group to a ALB listener with awscli
+    #   shell: > 
+    #       aws elbv2 create-rule --listener-arn {{ hostvars.localhost.reg_mtls_alb_facts.load_balancers.0.listeners.0.listener_arn }}
+    #       --priority {{ global_var_services_details.securecardhandlerserver.albPriority }}
+    #       --conditions Field=host-header,Values={{ global_var_services_details.securecardhandlerserver.domain}}
+    #       --actions Type=forward,TargetGroupArn={{ reg_bb_securecardhandler_target_group_facts.target_groups.0.target_group_arn }}
+    #       --region {{ smartgrid_active_region }}
+    #   when:
+    #     - global_awx_ad_hoc_shell_switch is defined
+    #     - global_awx_ad_hoc_shell_switch
+    #   environment:
+    #     AWS_ACCESS_KEY_ID: "{{ vault_aws_access_key }}"
+    #     AWS_SECRET_ACCESS_KEY: "{{ vault_aws_access_secret }}"      
+
+    - name: Billbox Secure CardHandler || Obtaining Service facts
+      ecs_service_facts:
+        service: "{{ bb_securecardhandler_service_name }}"
+        region: "{{ smartgrid_active_region }}"
+        cluster: "{{ global_var_ecs_clustername }}"
+        details: false 
+      register: reg_billboxcardhandler_service_facts
+
+    - name: Billbox Secure CardHandler || Setting arn of the cardhandler server ecs service
+      set_fact:
+        ecs_CardHandler_service_arn: "arn:aws:ecs:{{ smartgrid_active_region }}:{{ hostvars.localhost.reg_aws_facts.account}}:service/{{ bb_securecardhandler_service_name }}"
+
+    - name: Billbox Secure CardHandler || Creating or Updating the ECS service cardhandler
+      ecs_service:
+        state: present 
+        name: "{{ bb_securecardhandler_service_name }}"
+        service_registries:
+          - registryArn: "{{ hostvars.localhost.reg_cardhandler_sd_dns_details.0.Arn }}"
+        network_configuration:
+            assign_public_ip: "{{ bb_securecardhandler_service_assign_public_ip }}"
+            security_groups: "{{ hostvars.localhost.reg_app_secgroup_ids_facts | list }}"
+            subnets: "{{ hostvars.localhost.reg_app_subnet_ids_facts }}"
+        desired_count: "{{ bb_securecardhandler_service_count }}"
+        cluster: "{{ global_var_ecs_clustername }}"
+        task_definition: "{{ bb_securecardhandler_server_task_family_name }}:{{ reg_bb_securecardhandler_servertaskdef.taskdefinition.revision }}"
+        region: "{{ smartgrid_active_region }}"
+        health_check_grace_period_seconds: "{{ bb_securecardhandler_service_hc_graceperiod }}"
+        load_balancers:
+          - targetGroupArn: "{{ reg_bb_securecardhandler_target_group_facts.target_groups.0.target_group_arn }}"
+            containerName: "{{ global_var_services_details.proxynginxserver.name }}"
+            containerPort: "{{ bb_securecardhandler_proxyserver_listen_port }}"
+        launch_type: "{{ bb_securecardhandler_server_task_ecsmode }}"
+      when: not bb_securecardhandler_service_awscli_enabled
+
+
+    - name: Billbox Secure CardHandler || Creating core MEM Scalling Policy for {{ global_var_environment }}
+      aws_application_scaling_policy:
+        state: present
+        policy_name: "{{ bb_securecardhandler_service_mem_autoscalling_policy_name }}"
+        service_namespace: ecs
+        region: "{{ global_var_ecs_region }}"
+        resource_id: service/{{ global_var_ecs_clustername }}/{{ bb_securecardhandler_service_name }}
+        scalable_dimension: ecs:service:DesiredCount
+        policy_type: "{{ bb_securecardhandler_service_autoscalling_policy_type }}"
+        minimum_tasks: "{{ bb_securecardhandler_service_autoscalling_min_task }}"
+        maximum_tasks: "{{ bb_securecardhandler_service_autoscalling_max_task }}"
+        target_tracking_scaling_policy_configuration:
+          TargetValue: "{{ bb_securecardhandler_service_mem_autoscalling_tracking_scaling_target_value }}"
+          PredefinedMetricSpecification:
+            PredefinedMetricType: "{{ bb_securecardhandler_service_mem_autoscalling_tracking_scaling_metric_spec }}"
+          ScaleOutCooldown: "{{ bb_securecardhandler_service_mem_autoscalling_tracking_scalout_cooldown }}"
+          ScaleInCooldown: "{{ bb_securecardhandler_service_mem_autoscalling_tracking_scalin_cooldown }}"
+
+    - name: Billbox Secure CardHandler || Creating core CPU Scalling Policy for {{ global_var_environment }}
+      aws_application_scaling_policy:
+        state: present
+        policy_name: "{{ bb_securecardhandler_service_cpu_autoscalling_policy_name }}"
+        service_namespace: ecs
+        region: "{{ global_var_ecs_region }}"
+        resource_id: service/{{ global_var_ecs_clustername }}/{{ bb_securecardhandler_service_name }}
+        scalable_dimension: ecs:service:DesiredCount
+        policy_type: "{{ bb_securecardhandler_service_autoscalling_policy_type }}"
+        minimum_tasks: "{{ bb_securecardhandler_service_autoscalling_min_task }}"
+        maximum_tasks: "{{ bb_securecardhandler_service_autoscalling_max_task }}"
+        target_tracking_scaling_policy_configuration:
+          TargetValue: "{{ bb_securecardhandler_service_cpu_autoscalling_tracking_scaling_target_value }}"
+          PredefinedMetricSpecification:
+            PredefinedMetricType: "{{ bb_securecardhandler_service_cpu_autoscalling_tracking_scaling_metric_spec }}"
+          ScaleOutCooldown: "{{ bb_securecardhandler_service_cpu_autoscalling_tracking_scalout_cooldown }}"
+          ScaleInCooldown: "{{ bb_securecardhandler_service_cpu_autoscalling_tracking_scalin_cooldown }}"
+
+
+    # - name: Billbox Secure CardHandler || Creating a Sleep Time scheduled application autoscalling for Billbox Secure CardHandler
+    #   shell: > 
+    #       aws application-autoscaling put-scheduled-action --service-namespace ecs
+    #       --scalable-dimension ecs:service:DesiredCount
+    #       --resource-id service/{{ global_var_ecs_clustername }}/{{ bb_securecardhandler_service_name }}
+    #       --scheduled-action-name scheduled-gh-office-{{ bb_securecardhandler_service_name }}-off-time
+    #       --schedule "cron({{ bb_securecardhandler_service_sleep_cron | default('00 20 ? * MON-FRI *') }})"
+    #       --scalable-target-action MinCapacity={{ bb_securecardhandler_service_scheduled_sleep_autoscalling_min_task | default(0) }},MaxCapacity={{ bb_securecardhandler_service_scheduled_sleep_autoscalling_max_task | default(0) }}
+    #       --region {{ global_var_ecs_region }}
+    #       --profile {{ lookup('env','AWS_PROFILE') }}
+    #   when:
+    #     - global_awx_ad_hoc_shell_switch is defined
+    #     - not global_awx_ad_hoc_shell_switch
+    #     - bb_securecardhandler_service_scheduled_autoscalling | default(false)    
+
+    # - name: Billbox Secure CardHandler Server || Creating a Sleep Time scheduled application autoscalling for Billbox Secure CardHandler with awscli
+    #   shell: > 
+    #       aws application-autoscaling put-scheduled-action --service-namespace ecs
+    #       --scalable-dimension ecs:service:DesiredCount
+    #       --resource-id service/{{ global_var_ecs_clustername }}/{{ bb_securecardhandler_service_name }}
+    #       --scheduled-action-name scheduled-gh-office-{{ bb_securecardhandler_service_name }}-off-time
+    #       --schedule "cron({{ bb_securecardhandler_service_sleep_cron | default('00 20 ? * MON-FRI *') }})"
+    #       --scalable-target-action MinCapacity={{ bb_securecardhandler_service_scheduled_sleep_autoscalling_min_task | default(0) }},MaxCapacity={{ bb_securecardhandler_service_scheduled_sleep_autoscalling_max_task | default(0) }}
+    #       --region {{ global_var_ecs_region }}
+    #   when:
+    #     - global_awx_ad_hoc_shell_switch is defined
+    #     - global_awx_ad_hoc_shell_switch
+    #     - bb_securecardhandler_service_scheduled_autoscalling | default(false)
+    #   environment:
+    #     AWS_ACCESS_KEY_ID: "{{ vault_aws_access_key }}"
+    #     AWS_SECRET_ACCESS_KEY: "{{ vault_aws_access_secret }}" 
+
+    # - name: Billbox Secure CardHandler || Creating a Wake Time scheduled application autoscalling for Billbox Secure CardHandler
+    #   shell: > 
+    #       aws application-autoscaling put-scheduled-action --service-namespace ecs
+    #       --scalable-dimension ecs:service:DesiredCount
+    #       --resource-id service/{{ global_var_ecs_clustername }}/{{ bb_securecardhandler_service_name }}
+    #       --scheduled-action-name scheduled-gh-office-{{ bb_securecardhandler_service_name }}-wake-time
+    #       --schedule "cron({{ bb_securecardhandler_service_wake_cron | default('00 08 ? * MON-FRI *') }})"
+    #       --scalable-target-action MinCapacity={{ bb_securecardhandler_service_scheduled_wake_autoscalling_min_task | default(1) }},MaxCapacity={{ bb_securecardhandler_service_scheduled_wake_autoscalling_max_task | default(1) }}
+    #       --region {{ global_var_ecs_region }}
+    #       --profile {{ lookup('env','AWS_PROFILE') }}
+    #   when:
+    #     - global_awx_ad_hoc_shell_switch is defined
+    #     - not global_awx_ad_hoc_shell_switch      
+    #     - bb_securecardhandler_service_scheduled_autoscalling | default(false)    
+
+    # - name: Billbox Secure CardHandler || Creating a Wake Time scheduled application autoscalling for Billbox Secure CardHandler
+    #   shell: > 
+    #       aws application-autoscaling put-scheduled-action --service-namespace ecs
+    #       --scalable-dimension ecs:service:DesiredCount
+    #       --resource-id service/{{ global_var_ecs_clustername }}/{{ bb_securecardhandler_service_name }}
+    #       --scheduled-action-name scheduled-gh-office-{{ bb_securecardhandler_service_name }}-wake-time
+    #       --schedule "cron({{ bb_securecardhandler_service_wake_cron | default('00 08 ? * MON-FRI *') }})"
+    #       --scalable-target-action MinCapacity={{ bb_securecardhandler_service_scheduled_wake_autoscalling_min_task | default(1) }},MaxCapacity={{ bb_securecardhandler_service_scheduled_wake_autoscalling_max_task | default(1) }}
+    #       --region {{ global_var_ecs_region }}
+    #   when:
+    #     - global_awx_ad_hoc_shell_switch is defined
+    #     - global_awx_ad_hoc_shell_switch
+    #     - bb_securecardhandler_service_scheduled_autoscalling | default(false)
+    #   environment:
+    #     AWS_ACCESS_KEY_ID: "{{ vault_aws_access_key }}"
+    #     AWS_SECRET_ACCESS_KEY: "{{ vault_aws_access_secret }}" 
+
+
+
+
+
+
+
+

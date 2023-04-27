@@ -1,0 +1,326 @@
+- import_playbook: fact_gatherer_playbook.yml
+  tags:
+    - facts
+
+- import_playbook: aws_service_discovery_route53_playbook.yml
+  tags:
+    - facts
+
+- hosts: localhost
+  connection: local
+  gather_facts: yes
+  vars_files:
+    - "playbook_vars/{{ global_var_environment }}/global_vars.yml"
+    - "playbook_vars/{{ global_var_environment }}/application_securecore_vars.yml"
+    - "playbook_vars/{{ global_var_environment }}/vault/{{ global_var_environment }}_variables.vault"  
+  tasks:
+    - name: Extracting ARN from service discovery
+      set_fact:
+        reg_securecore_sd_dns_details: "{{ ServiceListJson | json_query(\"Services[?Name=='\" + global_var_services_details.securecoreserver.name+\"']\") }}"
+
+    - name: Setup || Creating ECS Cluster
+      ecs_cluster:
+        name: "{{ global_var_ecs_clustername }}"
+        state: present
+        region: "{{ global_var_ecs_region }}"
+      when: global_var_ecs_clustername is defined 
+
+    - name: Billbox SecureCore ||  Creating Parameter Store secrets 
+      aws_ssm_parameter_store:
+        name: "{{ item.value.id }}"
+        decryption: true 
+        region: "{{ global_var_ird_region }}"
+        string_type: "SecureString"
+        value: "{{ item.value.content }}"
+        state: "{{ item.value.state | default('present')}}"
+        overwrite_value: always # not required. choices: never;changed;always. Option to overwrite an existing value if it already exists.,String
+        description: "bb param store"
+      with_dict: "{{ bb_securecore_server_task_container_secretenv_definition }}"
+      # no_log: true
+      diff: true
+  
+    - name: Billbox SecureCore || Obtaining SSL target group facts
+      elb_target_group_info:
+        names: "{{ bb_securecore_targetgroup_name }}"
+        region: "{{ global_var_ecs_region }}"
+      register: reg_bb_securecore_target_group_facts
+  
+    - name: Billbox SecureCore || Obtaining HTTP target group facts
+      elb_target_group_info:
+        names: "{{ bb_securecore_http_targetgroup_name }}"
+        region: "{{ global_var_ecs_region }}"
+      register: reg_bb_securecore_http_target_group_facts
+
+
+    - name: Billbox SecureCore || Creating core SSL target group public 
+      elb_target_group:
+        name: "{{ bb_securecore_targetgroup_name }}"
+        state: present 
+        protocol: "{{ bb_securecore_targetgroup_protocol }}"
+        successful_response_codes: "{{ bb_securecore_targetgroup_success_http_code }}"
+        wait_timeout: 200 
+        health_check_interval: "{{ bb_securecore_targetgroup_hc_interval }}"
+        modify_targets: true 
+        healthy_threshold_count: "{{ bb_securecore_targetgroup_hc_healthycount }}"
+        # health_check_path: "{{ bb_securecore_targetgroup_hc_path }}"
+        health_check_protocol: "{{ bb_securecore_targetgroup_hc_protocol }}" 
+        health_check_port: "{{ bb_securecore_targetgroup_hc_port }}" 
+        unhealthy_threshold_count: "{{ bb_securecore_targetgroup_hc_unhealthycount }}"
+        region: "{{ global_var_ecs_region }}"
+        target_type: "{{ bb_securecore_targetgroup_targettype }}"
+        port: "{{ bb_securecore_targetgroup_port }}"
+        vpc_id: "{{ hostvars.localhost.reg_vpc_facts.vpcs.0.id }}" 
+        # wait: false 
+        # health_check_timeout: "{{ bb_securecore_targetgroup_hc_timeout }}"
+      register: reg_securecore_targetgroup
+      when: 
+      - reg_bb_securecore_target_group_facts.target_groups | length == 0
+
+    # - name: Billbox SecureCore || Creating core HTTP target group public 
+    #   elb_target_group:
+    #     name: "{{ bb_securecore_http_targetgroup_name }}"
+    #     state: present 
+    #     protocol: "{{ bb_securecore_targetgroup_protocol }}"
+    #     successful_response_codes: "{{ bb_securecore_targetgroup_success_http_code }}"
+    #     wait_timeout: 200 
+    #     health_check_interval: "{{ bb_securecore_targetgroup_hc_interval }}"
+    #     modify_targets: true 
+    #     healthy_threshold_count: "{{ bb_securecore_targetgroup_hc_healthycount }}"
+    #     # health_check_path: "{{ bb_securecore_targetgroup_hc_path }}"
+    #     health_check_protocol: "{{ bb_securecore_targetgroup_hc_protocol }}" 
+    #     health_check_port: "{{ bb_securecore_targetgroup_hc_port }}" 
+    #     unhealthy_threshold_count: "{{ bb_securecore_targetgroup_hc_unhealthycount }}"
+    #     region: "{{ global_var_ecs_region }}"
+    #     target_type: "{{ bb_securecore_targetgroup_targettype }}"
+    #     port: "{{ bb_securecore_http_targetgroup_port }}"
+    #     vpc_id: "{{ hostvars.localhost.reg_vpc_facts.vpcs.0.id }}" 
+    #     # wait: false 
+    #     # health_check_timeout: "{{ bb_securecore_targetgroup_hc_timeout }}"
+    #   register: reg_securecore_http_targetgroup
+    #   when: 
+    #   - reg_bb_securecore_http_target_group_facts.target_groups | length == 0
+    
+    - name: Billbox SecureCore || Second target group facts
+      elb_target_group_info:
+        names: "{{ bb_securecore_targetgroup_name }}"
+        region: "{{ global_var_ecs_region }}"
+      register: reg_bb_securecore_target_group_facts    
+    
+    - name: Billbox SecureCore || Second HTTP target group facts
+      elb_target_group_info:
+        names: "{{ bb_securecore_http_targetgroup_name }}"
+        region: "{{ global_var_ecs_region }}"
+      register: reg_bb_securecore_http_target_group_facts    
+
+    # - debug: var=bb_securecore_server_task_executionRoleArn
+    - name: Billbox SecureCore || Creating coreServer task definition
+      ecs_taskdefinition:
+        state: present 
+        family: "{{ bb_securecore_server_task_family_name }}"
+        region: "{{ global_var_ird_region }}"
+        execution_role_arn: "{{ bb_securecore_server_task_executionRoleArn }}" 
+        task_role_arn: "{{ bb_securecore_server_task_executionRoleArn }}" 
+        network_mode: "{{ bb_securecore_server_task_networkmode }}"
+        launch_type: "{{ bb_securecore_server_task_ecsmode }}"
+        cpu: "{{ bb_securecore_server_task_cpu }}"
+        memory: "{{ bb_securecore_server_task_memory }}"
+        force_create: yes
+        containers: 
+        - name: "{{ global_var_services_details.securecoreserver.name }}"
+          image: "{{ bb_securecore_server_task_container_image }}"
+          cpu: "{{ bb_securecore_server_task_container_cpu }}"
+          memory: "{{ bb_securecore_server_task_container_memory }}"
+          repositoryCredentials:
+            credentialsParameter: "{{ bb_securecore_server_task_container_credentials_parameter }}"
+          portMappings:
+          - containerPort: "{{ global_var_services_details.securecoreserver.containerPort }}"
+            hostPort: "{{ global_var_services_details.securecoreserver.hostPort }}"
+          - containerPort: "{{ bb_securecore_main_port }}"
+            hostPort: "{{ bb_securecore_main_port }}"
+          - containerPort: "{{ bb_securecore_int_port }}"
+            hostPort: "{{ bb_securecore_int_port }}"
+          essential: "{{ bb_securecore_server_task_container_essential }}"
+          environment: "{{ bb_securecore_server_task_container_env }}"
+          secrets: "{{ bb_securecore_server_task_container_secretenv }}"
+          logConfiguration:
+            logDriver: "{{ bb_securecore_server_task_container_log_driver }}"
+            options:
+              awslogs-group: "{{ bb_securecore_server_task_container_log_logsgroup }}"
+              awslogs-region: "{{ bb_securecore_server_task_container_log_logsregion }}" 
+              awslogs-stream-prefix: "{{ bb_securecore_server_task_container_log_logsprefix }}"
+
+        - name: "{{ bb_securecore_proxyserver_name }}"
+          image: "{{global_var_services_details.proxynginxserver.image }}"
+          repositoryCredentials:
+            credentialsParameter: "{{ bb_securecore_server_task_container_credentials_parameter }}"
+          portMappings:
+          - containerPort: "{{ bb_securecore_proxyserver_port }}"
+            hostPort: "{{ bb_securecore_proxyserver_port }}"
+          - containerPort: "{{ bb_securecore_http_targetgroup_port }}"
+            hostPort: "{{ bb_securecore_http_targetgroup_port }}"
+          essential: "{{ bb_securecore_sidecar_server_task_container_essential }}"
+          environment: "{{ bb_securecore_proxyserver_task_container_env }}"
+          logConfiguration:
+            logDriver: "{{ bb_securecore_server_task_container_log_driver }}"
+            options:
+              awslogs-group: "{{ bb_securecore_server_task_container_log_logsgroup }}"
+              awslogs-region: "{{ bb_securecore_server_task_container_log_logsregion }}" 
+              awslogs-stream-prefix: "{{ bb_securecore_server_task_container_log_logsprefix }}"
+              
+        - name: "{{ global_var_services_details.monitoringserver.name }}"
+          image: "{{ global_var_services_details.monitoringserver.image }}"
+          essential: false
+          secrets: "{{ bb_securecore_server_task_container_mon_secretenv }}"
+          environment: "{{ bb_securecore_server_task_container_mon_env }}"
+      register: reg_securecore_servertaskdef
+
+    # - debug: var=reg_securecore_servertaskdef
+
+
+    - name: Billbox SecureCore || Creating an NLB and attach a listener
+      elb_network_lb:
+        name: "{{ global_var_securecore_mtls_alb_name }}"
+        region: "{{ global_var_ecs_region }}"
+        subnets: "{{ hostvars.localhost.reg_app_subnet_ids_facts }}"
+        listeners:
+          - Protocol: "{{ bb_securecore_targetgroup_protocol }}"
+            Port: "{{ bb_securecore_network_lb_port }}"
+            DefaultActions:
+              - Type: forward
+                TargetGroupName: "{{ bb_securecore_targetgroup_name }}"
+          - Protocol: "{{ bb_securecore_targetgroup_protocol }}"
+            Port: "{{ bb_securecore_http_targetgroup_port }}"
+            DefaultActions:
+              - Type: forward
+                TargetGroupName: "{{ bb_securecore_http_targetgroup_name }}"
+        state: present
+
+
+    - name: Billbox SecureCore || Creating or Updating the ECS service coreserver
+      ecs_service:
+        state: present 
+        name: "{{ bb_securecore_service_name }}"
+        service_registries:
+          - registryArn: "{{ hostvars.localhost.reg_securecore_sd_dns_details.0.Arn }}"
+        network_configuration:
+            assign_public_ip: no
+            security_groups: "{{ hostvars.localhost.reg_app_secgroup_ids_facts | list }}"
+            subnets: "{{ hostvars.localhost.reg_private_app_subnet_ids_facts | list }}"
+        desired_count: "{{ bb_securecore_service_count }}"
+        cluster: "{{ global_var_ecs_clustername }}"
+        task_definition: "{{ bb_securecore_server_task_family_name }}:{{ reg_securecore_servertaskdef.taskdefinition.revision }}"
+        region: "{{ global_var_ecs_region }}"
+        load_balancers:
+          - targetGroupArn: "{{ reg_bb_securecore_target_group_facts.target_groups.0.target_group_arn }}"
+            containerName: "{{ bb_securecore_proxyserver_name }}"
+            containerPort: "{{ bb_securecore_proxyserver_port }}"
+          - targetGroupArn: "{{ reg_bb_securecore_http_target_group_facts.target_groups.0.target_group_arn }}"
+            containerName: "{{ bb_securecore_proxyserver_name }}"
+            containerPort: "{{ bb_securecore_http_targetgroup_port }}"
+        launch_type: "{{ bb_securecore_server_task_ecsmode }}"
+        health_check_grace_period_seconds: "{{ bb_securecore_service_hc_graceperiod }}"
+
+    - name: Billbox SecureCore || Creating core MEM Scalling Policy for {{ global_var_environment }}
+      aws_application_scaling_policy:
+        state: present
+        policy_name: "{{ bb_securecore_service_mem_autoscalling_policy_name }}"
+        service_namespace: ecs
+        region: "{{ global_var_ecs_region }}"
+        resource_id: service/{{ global_var_ecs_clustername }}/{{ bb_securecore_service_name }}
+        scalable_dimension: ecs:service:DesiredCount
+        policy_type: "{{ bb_securecore_service_autoscalling_policy_type }}"
+        minimum_tasks: "{{ bb_securecore_service_autoscalling_min_task }}"
+        maximum_tasks: "{{ bb_securecore_service_autoscalling_max_task }}"
+        target_tracking_scaling_policy_configuration:
+          TargetValue: "{{ bb_securecore_service_mem_autoscalling_tracking_scaling_target_value }}"
+          PredefinedMetricSpecification:
+            PredefinedMetricType: "{{ bb_securecore_service_mem_autoscalling_tracking_scaling_metric_spec }}"
+          ScaleOutCooldown: "{{ bb_securecore_service_mem_autoscalling_tracking_scalout_cooldown }}"
+          ScaleInCooldown: "{{ bb_securecore_service_mem_autoscalling_tracking_scalin_cooldown }}"
+
+    - name: Billbox SecureCore || Creating core CPU Scalling Policy for {{ global_var_environment }}
+      aws_application_scaling_policy:
+        state: present
+        policy_name: "{{ bb_securecore_service_cpu_autoscalling_policy_name }}"
+        service_namespace: ecs
+        region: "{{ global_var_ecs_region }}"
+        resource_id: service/{{ global_var_ecs_clustername }}/{{ bb_securecore_service_name }}
+        scalable_dimension: ecs:service:DesiredCount
+        policy_type: "{{ bb_securecore_service_autoscalling_policy_type }}"
+        minimum_tasks: "{{ bb_securecore_service_autoscalling_min_task }}"
+        maximum_tasks: "{{ bb_securecore_service_autoscalling_max_task }}"
+        target_tracking_scaling_policy_configuration:
+          TargetValue: "{{ bb_securecore_service_cpu_autoscalling_tracking_scaling_target_value }}"
+          PredefinedMetricSpecification:
+            PredefinedMetricType: "{{ bb_securecore_service_cpu_autoscalling_tracking_scaling_metric_spec }}"
+          ScaleOutCooldown: "{{ bb_securecore_service_cpu_autoscalling_tracking_scalout_cooldown }}"
+          ScaleInCooldown: "{{ bb_securecore_service_cpu_autoscalling_tracking_scalin_cooldown }}"
+
+
+    # - name: Billbox SecureCore || Creating a Sleep Time scheduled application autoscalling for Billbox Core
+    #   shell: > 
+    #       aws application-autoscaling put-scheduled-action --service-namespace ecs
+    #       --scalable-dimension ecs:service:DesiredCount
+    #       --resource-id service/{{ global_var_ecs_clustername }}/{{ bb_securecore_service_name }}
+    #       --scheduled-action-name scheduled-gh-office-{{ bb_securecore_service_name }}-off-time
+    #       --schedule "cron({{ bb_securecore_service_sleep_cron | default('00 20 ? * MON-FRI *') }})"
+    #       --scalable-target-action MinCapacity={{ bb_securecore_service_scheduled_sleep_autoscalling_min_task | default(0) }},MaxCapacity={{ bb_securecore_service_scheduled_sleep_autoscalling_max_task | default(0) }}
+    #       --region {{ global_var_ecs_region }}
+    #       --profile {{ lookup('env','AWS_PROFILE') }}
+    #   when:
+    #     - global_awx_ad_hoc_shell_switch is defined
+    #     - not global_awx_ad_hoc_shell_switch
+    #     - bb_securecore_service_scheduled_autoscalling | default(false)
+    #     - global_auto_turnoff     
+
+    # - name: Billbox SecureCore || Creating a Sleep Time scheduled application autoscalling for Billbox Core
+    #   shell: > 
+    #       aws application-autoscaling put-scheduled-action --service-namespace ecs
+    #       --scalable-dimension ecs:service:DesiredCount
+    #       --resource-id service/{{ global_var_ecs_clustername }}/{{ bb_securecore_service_name }}
+    #       --scheduled-action-name scheduled-gh-office-{{ bb_securecore_service_name }}-off-time
+    #       --schedule "cron({{ bb_securecore_service_sleep_cron | default('00 20 ? * MON-FRI *') }})"
+    #       --scalable-target-action MinCapacity={{ bb_securecore_service_scheduled_sleep_autoscalling_min_task | default(0) }},MaxCapacity={{ bb_securecore_service_scheduled_sleep_autoscalling_max_task | default(0) }}
+    #       --region {{ global_var_ecs_region }}
+    #   when:
+    #     - global_awx_ad_hoc_shell_switch is defined
+    #     - global_awx_ad_hoc_shell_switch
+    #     - bb_securecore_service_scheduled_autoscalling | default(false)
+    #     - global_auto_turnoff 
+    #   environment:
+    #     AWS_ACCESS_KEY_ID: "{{ vault_aws_access_key }}"
+    #     AWS_SECRET_ACCESS_KEY: "{{ vault_aws_access_secret }}" 
+
+    # - name: Billbox SecureCore || Creating a Wake Time scheduled application autoscalling for Billbox Core
+    #   shell: > 
+    #       aws application-autoscaling put-scheduled-action --service-namespace ecs
+    #       --scalable-dimension ecs:service:DesiredCount
+    #       --resource-id service/{{ global_var_ecs_clustername }}/{{ bb_securecore_service_name }}
+    #       --scheduled-action-name scheduled-gh-office-{{ bb_securecore_service_name }}-wake-time
+    #       --schedule "cron({{ bb_securecore_service_wake_cron | default('00 08 ? * MON-FRI *') }})"
+    #       --scalable-target-action MinCapacity={{ bb_securecore_service_scheduled_wake_autoscalling_min_task | default(1) }},MaxCapacity={{ bb_securecore_service_scheduled_wake_autoscalling_max_task | default(1) }}
+    #       --region {{ global_var_ecs_region }}
+    #       --profile {{ lookup('env','AWS_PROFILE') }}
+    #   when:
+    #     - global_awx_ad_hoc_shell_switch is defined
+    #     - not global_awx_ad_hoc_shell_switch
+    #     - bb_securecore_service_scheduled_autoscalling | default(false) 
+    #     - global_auto_turnoff   
+
+    # - name: Billbox SecureCore || Creating a Wake Time scheduled application autoscalling for Billbox Core
+    #   shell: > 
+    #       aws application-autoscaling put-scheduled-action --service-namespace ecs
+    #       --scalable-dimension ecs:service:DesiredCount
+    #       --resource-id service/{{ global_var_ecs_clustername }}/{{ bb_securecore_service_name }}
+    #       --scheduled-action-name scheduled-gh-office-{{ bb_securecore_service_name }}-wake-time
+    #       --schedule "cron({{ bb_securecore_service_wake_cron | default('00 08 ? * MON-FRI *') }})"
+    #       --scalable-target-action MinCapacity={{ bb_securecore_service_scheduled_wake_autoscalling_min_task | default(1) }},MaxCapacity={{ bb_securecore_service_scheduled_wake_autoscalling_max_task | default(1) }}
+    #       --region {{ global_var_ecs_region }}
+    #   when:
+    #     - global_awx_ad_hoc_shell_switch is defined
+    #     - global_awx_ad_hoc_shell_switch
+    #     - bb_securecore_service_scheduled_autoscalling | default(false)
+    #     - global_auto_turnoff
+    #   environment:
+    #     AWS_ACCESS_KEY_ID: "{{ vault_aws_access_key }}"
+    #     AWS_SECRET_ACCESS_KEY: "{{ vault_aws_access_secret }}" 

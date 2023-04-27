@@ -1,0 +1,11 @@
+[
+    {
+        "Field": "host-header",
+        "HostHeaderConfig": {
+            "Values": [
+                "www.usebillbox.com",
+                "usebillbox.com"
+                ]
+        }
+    }
+]

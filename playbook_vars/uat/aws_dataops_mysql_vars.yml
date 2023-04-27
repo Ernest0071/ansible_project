@@ -1,0 +1,95 @@
+jumpbox_mysql_execute_dataops_file_target:
+  - "/tmp/quartz_scheduler_db_dump.sql.gz"
+  - "/tmp/template_db_dump.sql.gz"
+  - "/tmp/card_db_dump.sql.gz"
+  - "/tmp/metabase_db_dump.sql.gz"
+
+jumpbox_mysql_execute_script_dependencies_apps_list:
+  - mysql-client
+  - python-mysqldb
+  - unzip
+  - python-pexpect
+
+jumpbox_mysql_execute_upload_dump_enabled: false
+jumpbox_mysql_execute_dataops_details:
+  # - {
+  #   dbops_name: "dump",
+  #   app_username: "{{ vault_mysql_scheduler_username }}",
+  #   app_password: "{{ vault_mysql_scheduler_password }}",
+  #   db_name: "{{ vault_mysql_scheduler_dbname }}",
+  #   db_host: "{{ groups[main_mysql_target_helper][0] }}",
+  #   db_port: "{{ global_var_mysql_port }}",
+  #   db_file_source: "",
+  #   db_file_target: "{{ jumpbox_mysql_execute_dataops_file_target[0] }}"
+  # }
+  # - {
+  #   dbops_name: "dump",
+  #   app_username: "{{ vault_mysql_template_username }}",
+  #   app_password: "{{ vault_mysql_template_password }}",
+  #   db_name: "{{ vault_mysql_template_dbname }}",
+  #   db_host: "{{ groups[main_mysql_target_helper][0] }}",
+  #   db_port: "{{ global_var_mysql_port }}",
+  #   db_file_source: "",
+  #   db_file_target: "{{ jumpbox_mysql_execute_dataops_file_target[1] }}"
+  # }
+  # - {
+  #   dbops_name: "dump",
+  #   app_username: "{{ vault_mysql_cardhandler_username }}",
+  #   app_password: "{{ vault_mysql_cardhandler_password }}",
+  #   db_name: "{{ vault_mysql_cardhandler_dbname }}",
+  #   db_host: "{{ groups[main_mysql_target_helper][0] }}",
+  #   db_port: "{{ global_var_mysql_port }}",
+  #   db_file_source: "",
+  #   db_file_target: "{{ jumpbox_mysql_execute_dataops_file_target[2] }}"
+  # }
+  # - {
+  #   dbops_name: "dump",
+  #   app_username: "{{ vault_mysql_metabase_username }}",
+  #   app_password: "{{ vault_mysql_metabase_password }}",
+  #   db_name: "{{ vault_mysql_metabase_dbname }}",
+  #   db_host: "{{ groups[main_mysql_target_helper][0] }}",
+  #   db_port: "{{ global_var_mysql_port }}",
+  #   db_file_source: "",
+  #   db_file_target: "{{ jumpbox_mysql_execute_dataops_file_target[3] }}"
+  # }
+  # - {
+  #   dbops_name: "import",
+  #   app_username: "{{ vault_rds_scheduler_username }}",
+  #   app_password: "{{ vault_rds_scheduler_password }}",
+  #   db_name: "{{ vault_rds_scheduler_dbname }}",
+  #   db_host: "{{ hostvars[main_rds_target_helper].endpoint }}",
+  #   db_port: "{{ global_var_mysql_port }}",
+  #   db_file_source: "",
+  #   db_file_target: "{{ jumpbox_mysql_execute_dataops_file_target[0] }}"
+  # }
+  - {
+    dbops_name: "import",
+    app_username: "{{ vault_rds_template_username }}",
+    app_password: "{{ vault_rds_template_password }}",
+    db_name: "{{ vault_rds_template_dbname }}",
+    db_host: "{{ hostvars[main_rds_target_helper].endpoint }}",
+    db_port: "{{ global_var_mysql_port }}",
+    db_file_source: "",
+    db_file_target: "{{ jumpbox_mysql_execute_dataops_file_target[1] }}"
+  }
+  - {
+    dbops_name: "import",
+    app_username: "{{ vault_rds_carddb_username }}",
+    app_password: "{{ vault_rds_carddb_password }}",
+    db_name: "{{ vault_rds_carddb_database }}",
+    db_host: "{{ hostvars[main_rds_target_helper].endpoint }}",
+    db_port: "{{ global_var_mysql_port }}",
+    db_file_source: "",
+    db_file_target: "{{ jumpbox_mysql_execute_dataops_file_target[2] }}"
+  }
+  - {
+    dbops_name: "import",
+    app_username: "{{ vault_rds_metabase_username }}",
+    app_password: "{{ vault_rds_metabase_password }}",
+    db_name: "{{ vault_rds_metabase_dbname }}",
+    db_host: "{{ hostvars[main_rds_target_helper].endpoint }}",
+    db_port: "{{ global_var_mysql_port }}",
+    db_file_source: "",
+    db_file_target: "{{ jumpbox_mysql_execute_dataops_file_target[3] }}"
+  }
+ 

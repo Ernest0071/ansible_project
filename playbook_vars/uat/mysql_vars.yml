@@ -1,0 +1,75 @@
+# global_fix_dpkg_issues: yes
+util_filesystem_enable: true
+util_filesystem_install_package_list: 
+- unzip
+- htop
+- python3-pip
+perconamysql_configure_repo_details:
+  url: "https://repo.percona.com/apt/percona-release_latest.generic_all.deb"
+  enables:
+    -  original
+## Percona xtradbb section    
+perconamysql_xtradb_cluster_name: "BBMysqlCluster"
+perconamysql_xtradb_cluster_enable: True
+perconamysql_xtradb_cluster_name_version: "percona-xtradb-cluster-57"
+perconamysql_xtradb_cluster_stop_for_repl: true
+perconamysql_xtradb_cluster_port: "{{ global_var_mysql_port }}"
+perconamysql_xtradb_cluster_config_rootpath: "/etc/mysql/percona-xtradb-cluster.conf.d"
+perconamysql_xtradb_cluster_client_conf_path: "{{ perconamysql_xtradb_cluster_config_rootpath }}/client.cnf"
+perconamysql_xtradb_cluster_port_details:
+  - {
+      path: "{{ perconamysql_xtradb_cluster_client_conf_path }}",
+      searchregex: "^port\\s*=",
+      replacexp: "port       = {{ perconamysql_xtradb_cluster_port }}"
+  }
+  - {
+      path: "{{ perconamysql_xtradb_cluster_config_rootpath }}/mysqld.cnf",
+      searchregex: "^port\\s*=",
+      replacexp: "port       = {{ perconamysql_xtradb_cluster_port }}"
+  }
+perconamysql_xtradb_cluster_password: "{{ vault_mysql_root_password }}"
+perconamysql_xtradb_cluster_replacepassword_enable: true
+perconamysql_xtradb_cluster_sst_username: "{{ vault_mysql_repl_username }}"
+perconamysql_xtradb_cluster_sst_password: "{{ vault_mysql_repl_password }}"
+perconamysql_xtradb_cluster_setup_users_details:
+  - {
+      username: "{{ perconamysql_xtradb_cluster_sst_username }}",
+      password: "{{ perconamysql_xtradb_cluster_sst_password }}",
+      privs: "*.*:RELOAD,LOCK TABLES,PROCESS,REPLICATION CLIENT", 
+      host: "%",
+      login_host: "localhost",
+      login_port: "{{ perconamysql_xtradb_cluster_port }}",
+      login_user: "root",
+      login_password: "{{ perconamysql_xtradb_cluster_password }}"
+  }
+  - {
+      username: "{{ vault_mysql_root_username }}",
+      password: "{{ vault_mysql_root_password }}",
+      privs: "*.*:ALL,GRANT", 
+      host: "%",
+      login_host: "localhost",
+      login_port: "{{ perconamysql_xtradb_cluster_port }}",
+      login_user: "root",
+      login_password: "{{ perconamysql_xtradb_cluster_password }}"
+  }
+perconamysql_xtradb_cluster_templating_details:
+  - {
+    dst: "{{ perconamysql_xtradb_cluster_config_rootpath }}/wsrep.cnf",
+    src: "wsrep_57.cnf.j2",
+    owner: "mysql",
+    group: "mysql",
+    wsrep_provider: "/usr/lib/galera3/libgalera_smm.so",
+    cluster_ips: "{{ hostvars.localhost.reg_db_uri_ips }}",
+    default_storage_engine: "InnoDB",
+    node_ip_address: "{{ inventory_hostname }}",
+    node_ip_address_incoming_port: "{{ inventory_hostname }}:{{ perconamysql_xtradb_cluster_port }}",
+    cluster_name: "{{ perconamysql_xtradb_cluster_name }}",
+    node_name_in_cluster: "{{ ansible_hostname }}",
+    sst_credentials: "{{ perconamysql_xtradb_cluster_sst_username }}:{{ perconamysql_xtradb_cluster_sst_password }}"
+  }
+perconamysql_xtradb_cluster_first_node: "{{ groups[main_mysql_target_helper][0] }}"
+# perconamysql_xtradb_cluster_first_node: "{{ groups['tag_AName_one_sg_test_mysql_eu_west_1a'][0] }}"
+perconamysql_xtradb_cluster_all_node_restart_enable: true
+perconamysql_xtradb_cluster_bootstrap_path: "/var/lib/mysql/grastate.dat"
+
+## End Percona xtradbb section 

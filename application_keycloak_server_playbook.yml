@@ -1,0 +1,231 @@
+- import_playbook: fact_gatherer_playbook.yml
+  tags:
+    - facts
+
+- import_playbook: aws_service_discovery_route53_playbook.yml
+  tags:
+    - facts
+
+- hosts: localhost
+  connection: local
+  gather_facts: true
+  vars_files:
+    - playbook_vars/{{ global_var_environment }}/global_vars.yml
+    - playbook_vars/{{ global_var_environment }}/application_keycloak_vars.yml
+    - playbook_vars/{{ global_var_environment }}/vault/{{ global_var_environment }}_variables.vault
+  tasks:
+    - name: Billbox Keycloak || Extracting ARN from service discovery
+      set_fact:
+        reg_core_sd_dns_details: "{{ ServiceListJson | json_query(\"Services[?Name=='\" + global_var_services_details.keycloakserver.name+\"']\") }}"
+
+    - name: Billbox Keycloak || Creating ECS Cluster
+      ecs_cluster:
+        name: "{{ global_var_ecs_clustername }}"
+        state: present
+        region: "{{ global_var_ecs_region }}"
+      when: global_var_ecs_clustername is defined
+
+    - name: Billbox Keycloak ||  Creating Parameter Store secrets
+      aws_ssm_parameter_store:
+        name: "{{ item.value.id }}"
+        decryption: true
+        region: "{{ global_var_ird_region }}"
+        string_type: "SecureString"
+        value: "{{ item.value.content }}"
+        state: "{{ item.value.state | default('present')}}"
+        overwrite_value: always # not required. choices: never;changed;always. Option to overwrite an existing value if it already exists.,String
+        description: "bb param store"
+      with_dict: "{{ bb_keycloak_server_task_container_secret_rawenv }}"
+      no_log: true
+
+    - name: Billbox Keycloak || Creating coreServer task definition
+      ecs_taskdefinition:
+        state: present
+        family: "{{ bb_keycloak_server_task_family_name }}"
+        region: "{{ global_var_ird_region }}"
+        execution_role_arn: "{{ bb_keycloak_server_task_executionRoleArn }}"
+        network_mode: "{{ bb_keycloak_server_task_networkmode }}"
+        launch_type: "{{ bb_keycloak_server_task_ecsmode }}"
+        cpu: "{{ bb_keycloak_server_task_cpu }}"
+        memory: "{{ bb_keycloak_server_task_memory }}"
+        force_create: "{{ bb_keycloak_server_task_force_create }}"
+        containers:
+          - name: "{{ global_var_services_details.keycloakserver.name }}"
+            image: "{{ bb_keycloak_server_task_container_image }}"
+            cpu: "{{ bb_keycloak_server_task_container_cpu }}"
+            memory: "{{ bb_keycloak_server_task_container_memory }}"
+            repositoryCredentials:
+              credentialsParameter: "{{ bb_keycloak_server_task_container_credentials_parameter }}"
+            portMappings:
+              - containerPort: "{{ global_var_services_details.keycloakserver.containerPort }}"
+                hostPort: "{{ global_var_services_details.keycloakserver.hostPort }}"
+            essential: "{{ bb_keycloak_server_task_container_essential }}"
+            environment: "{{ bb_keycloak_server_task_container_env }}"
+            secrets: "{{ bb_keycloak_server_task_container_secretenv }}"
+            logConfiguration:
+              logDriver: "{{ bb_keycloak_server_task_container_log_driver }}"
+              options:
+                awslogs-group: "{{ bb_keycloak_server_task_container_log_logsgroup }}"
+                awslogs-region: "{{ bb_keycloak_server_task_container_log_logsregion }}"
+                awslogs-stream-prefix: "{{ bb_keycloak_server_task_container_log_logsprefix }}"
+
+          - name: "{{ bb_keycloak_proxyserver_name }}"
+            image: "{{ bb_keycloak_proxyserver_image }}"
+            repositoryCredentials:
+              credentialsParameter: "{{ bb_keycloak_server_task_container_credentials_parameter }}"
+            portMappings:
+              - containerPort: "{{ bb_keycloak_proxyserver_listen_port }}"
+                hostPort: "{{ bb_keycloak_proxyserver_listen_port }}"
+            essential: "{{ bb_keycloak_sidecar_server_task_container_essential }}"
+            environment: "{{ bb_keycloak_nginx_server_task_container_env }}"
+            logConfiguration:
+              logDriver: "{{ bb_keycloak_server_task_container_log_driver }}"
+              options:
+                awslogs-group: "{{ bb_keycloak_server_task_container_log_logsgroup }}"
+                awslogs-region: "{{ bb_keycloak_server_task_container_log_logsregion }}"
+                awslogs-stream-prefix: "{{ bb_keycloak_server_task_container_log_logsprefix }}"
+
+          - name: "{{ bb_keycloak_service_monitoringserver_name }}"
+            image: "{{ bb_keycloak_service_monitoringserver_image }}"
+            essential: false
+            secrets: "{{ bb_keycloak_server_task_container_mon_secretenv }}"
+            environment: "{{ bb_keycloak_server_task_container_mon_env }}"
+      register: reg_core_servertaskdef
+
+    # - debug: var=reg_core_servertaskdef
+
+    - name: Billbox Keycloak || Obtaining target group facts
+      elb_target_group_info:
+        names: "{{ bb_keycloak_targetgroup_name }}"
+        region: "{{ global_var_ecs_region }}"
+      register: reg_bb_keycloak_target_group_facts
+
+
+    - name: Billbox Keycloak || Creating target group
+      elb_target_group:
+        name: "{{ bb_keycloak_targetgroup_name }}"
+        state: present
+        protocol: "{{ bb_keycloak_targetgroup_protocol }}"
+        successful_response_codes: "{{ bb_keycloak_targetgroup_success_http_code }}"
+        wait_timeout: 200
+        health_check_interval: "{{ bb_keycloak_targetgroup_hc_interval }}"
+        modify_targets: true
+        healthy_threshold_count: "{{ bb_keycloak_targetgroup_hc_healthycount }}"
+        health_check_path: "{{ bb_keycloak_targetgroup_hc_path }}"
+        health_check_protocol: "{{ bb_keycloak_targetgroup_hc_protocol }}"
+        health_check_port: "{{ bb_keycloak_targetgroup_hc_port }}"
+        unhealthy_threshold_count: "{{ bb_keycloak_targetgroup_hc_unhealthycount }}"
+        region: "{{ global_var_ecs_region }}"
+        target_type: "{{ bb_keycloak_targetgroup_targettype }}"
+        port: "{{ bb_keycloak_proxyserver_listen_port }}"
+        vpc_id: "{{ hostvars.localhost.reg_vpc_facts.vpcs.0.id }}"
+        # wait: false
+        health_check_timeout: "{{ bb_keycloak_targetgroup_hc_timeout }}"
+      register: reg_core_targetgroup
+      when:
+        - reg_bb_keycloak_target_group_facts.target_groups | length == 0
+
+    - name: Billbox Keycloak || Obtaining target group facts 2nd round
+      elb_target_group_info:
+        names: "{{ bb_keycloak_targetgroup_name }}"
+        region: "{{ global_var_ecs_region }}"
+      register: reg_bb_keycloak_target_group_facts
+
+    - name: Billbox Keycloak || Associating target group to a ALB listener for core
+      shell: >
+          aws elbv2 create-rule --listener-arn {{ hostvars.localhost.reg_alb_facts.load_balancers.0.listeners.0.listener_arn }}
+          --priority {{ global_var_services_details.keycloakserver.albPriority }}
+          --conditions Field=host-header,Values={{ global_var_services_details.keycloakserver.domain }}
+          --actions Type=forward,TargetGroupArn={{ reg_bb_keycloak_target_group_facts.target_groups.0.target_group_arn }}
+          --region {{ global_var_ecs_region }}
+          --profile {{ lookup('env','AWS_PROFILE') }}
+      when:
+        - global_awx_ad_hoc_shell_switch is defined
+        - not global_awx_ad_hoc_shell_switch
+
+    - name: Billbox Keycloak || Associating target group to a ALB listener for core
+      shell: >
+          aws elbv2 create-rule --listener-arn {{ hostvars.localhost.reg_alb_facts.load_balancers.0.listeners.0.listener_arn }}
+          --priority {{ global_var_services_details.keycloakserver.albPriority }}
+          --conditions Field=host-header,Values={{ global_var_services_details.keycloakserver.domain }}
+          --actions Type=forward,TargetGroupArn={{ reg_bb_keycloak_target_group_facts.target_groups.0.target_group_arn }}
+          --region {{ global_var_ecs_region }}
+      when:
+        - global_awx_ad_hoc_shell_switch is defined
+        - global_awx_ad_hoc_shell_switch
+      environment:
+        AWS_ACCESS_KEY_ID: "{{ vault_aws_access_key }}"
+        AWS_SECRET_ACCESS_KEY: "{{ vault_aws_access_secret }}"
+      # when: global_var_services_details.keycloakserver is defined
+
+    - name: Billbox Keycloak || Creating or Updating the ECS service keycloakserver
+      ecs_service:
+        state: present
+        name: "{{ bb_keycloak_service_name }}"
+        service_registries:
+          - registryArn: "{{ hostvars.localhost.reg_core_sd_dns_details.0.Arn }}"
+        network_configuration:
+          assign_public_ip: false
+          security_groups: "{{ hostvars.localhost.reg_app_secgroup_ids_facts | list }}"
+          subnets: "{{ hostvars.localhost.reg_private_app_subnet_ids_facts | list }}"
+        desired_count: "{{ bb_keycloak_service_count }}"
+        cluster: "{{ global_var_ecs_clustername }}"
+        task_definition: "{{ bb_keycloak_server_task_family_name }}:{{ reg_core_servertaskdef.taskdefinition.revision }}"
+        region: "{{ global_var_ecs_region }}"
+        load_balancers:
+          # - targetGroupArn: "{{ reg_bb_keycloak_target_group_facts.target_groups.0.target_group_arn }}"
+          #   containerName: "{{ global_var_services_details.keycloakserver.name }}"
+          #   containerPort: "{{ global_var_services_details.keycloakserver.containerPort }}"
+          - targetGroupArn: "{{ reg_bb_keycloak_target_group_facts.target_groups.0.target_group_arn }}"
+            containerName: "{{ bb_keycloak_proxyserver_name }}"
+            containerPort: "{{ bb_keycloak_proxyserver_listen_port }}"
+        launch_type: "{{ bb_keycloak_server_task_ecsmode }}"
+        health_check_grace_period_seconds: "{{ bb_keycloak_service_hc_graceperiod }}"
+
+    - name: Billbox Keycloak ||  Ensure tags are present on service
+      community.aws.ecs_tag:
+        cluster_name: "{{ global_var_ecs_clustername }}"
+        resource_type: service
+        resource: "{{ bb_keycloak_service_name }}"
+        state: present
+        region: "{{ global_var_ird_region }}"
+        tags:
+          Name: "{{ bb_keycloak_service_name }}"
+          ENV: "{{ global_var_environment }}"
+          Product: "{{ global_var_product | capitalize }}"
+
+    - name: Billbox Keycloak || Creating Keycloak MEM Scalling Policy for {{ global_var_environment }}
+      aws_application_scaling_policy:
+        state: present
+        policy_name: "{{ bb_keycloak_service_mem_autoscalling_policy_name }}"
+        service_namespace: ecs
+        region: "{{ global_var_ecs_region }}"
+        resource_id: service/{{ global_var_ecs_clustername }}/{{ bb_keycloak_service_name }}
+        scalable_dimension: ecs:service:DesiredCount
+        policy_type: "{{ bb_keycloak_service_autoscalling_policy_type }}"
+        minimum_tasks: "{{ bb_keycloak_service_autoscalling_min_task }}"
+        maximum_tasks: "{{ bb_keycloak_service_autoscalling_max_task }}"
+        target_tracking_scaling_policy_configuration:
+          TargetValue: "{{ bb_keycloak_service_mem_autoscalling_tracking_scaling_target_value }}"
+          PredefinedMetricSpecification:
+            PredefinedMetricType: "{{ bb_keycloak_service_mem_autoscalling_tracking_scaling_metric_spec }}"
+          ScaleOutCooldown: "{{ bb_keycloak_service_mem_autoscalling_tracking_scalout_cooldown }}"
+          ScaleInCooldown: "{{ bb_keycloak_service_mem_autoscalling_tracking_scalin_cooldown }}"
+
+    - name: Billbox Keycloak || Creating keycloak CPU Scalling Policy for {{ global_var_environment }}
+      aws_application_scaling_policy:
+        state: present
+        policy_name: "{{ bb_keycloak_service_cpu_autoscalling_policy_name }}"
+        service_namespace: ecs
+        region: "{{ global_var_ecs_region }}"
+        resource_id: service/{{ global_var_ecs_clustername }}/{{ bb_keycloak_service_name }}
+        scalable_dimension: ecs:service:DesiredCount
+        policy_type: "{{ bb_keycloak_service_autoscalling_policy_type }}"
+        minimum_tasks: "{{ bb_keycloak_service_autoscalling_min_task }}"
+        maximum_tasks: "{{ bb_keycloak_service_autoscalling_max_task }}"
+        target_tracking_scaling_policy_configuration:
+          TargetValue: "{{ bb_keycloak_service_cpu_autoscalling_tracking_scaling_target_value }}"
+          PredefinedMetricSpecification:
+            PredefinedMetricType: "{{ bb_keycloak_service_cpu_autoscalling_tracking_scaling_metric_spec }}"
+          ScaleOutCooldown: "{{ bb_keycloak_service_cpu_autoscalling_tracking_scalout_cooldown }}"
+          ScaleInCooldown: "{{ bb_keycloak_service_cpu_autoscalling_tracking_scalin_cooldown }}"

@@ -1,0 +1,127 @@
+---
+local_vars_proxy_default_vhost_file: "main.conf"
+local_vars_proxy_main_log_access_file: "/var/log/nginx/main_access.log"
+local_vars_proxy_main_log_error_file: "/var/log/nginx/main_error.log"
+local_vars_proxy_ssl_year: "2022_2023"
+util_filesystem_enable: true
+util_filesystem_create_directory_with_pem_details_dict:
+  defaultslfolder:
+    path: "{{ global_var_billbox_client_ssl_folder_path }}"
+  heartbeat:
+    path: "{{ elasticbeats_hearbeat_log_dir }}"
+ 
+aws_install_python_pip_enable: true
+aws_pip_install_boto_enable: true
+aws_install_awscli_enable: true
+aws_s3_enable: true
+aws_s3_pull_object_details:
+  billboxcert:
+    bucket: "{{ global_var_billbox_s3_bucket }}"
+    objpath: "{{ global_var_billbox_s3_client_ssl_bucket_key }}/main/{{ local_vars_proxy_ssl_year }}/{{ global_var_billbox_ssl_cert }}"
+    dest_path: "{{ global_var_billbox_client_ssl_folder_path }}/{{ global_var_billbox_ssl_cert }}"
+  billboxkey:
+    bucket: "{{ global_var_billbox_s3_bucket }}"
+    objpath: "{{ global_var_billbox_s3_client_ssl_bucket_key }}/main/{{ local_vars_proxy_ssl_year }}/{{ global_var_billbox_ssl_key }}"
+    dest_path: "{{ global_var_billbox_client_ssl_folder_path }}/{{ global_var_billbox_ssl_key }}"
+webserverfamily_nginx_enable: true
+webserverfamily_nginx_push_configfiles_details:
+  maingninx:
+    src: "nginx/mainnginx.conf.j2"
+    dest: "/etc/nginx/nginx.conf"
+    owner: "root"
+    group: "root"
+    nginxuser: "www-data"
+    toplevelerrorlog: "/var/log/nginx/error.log"
+    dynamicmodule: true
+    nginx_secure: true
+    includeconfigs:
+      - "/etc/nginx/conf.d/*.conf"
+      - "/etc/nginx/sites-enabled/*.conf"
+  logconfig:
+    src: "nginx/nginx_log_format.conf.j2"
+    dest: "/etc/nginx/conf.d/jsonlog.conf"
+    owner: "root"
+    group: "root"
+    name: "jsonlog"
+  defaultvhost:
+    src: "nginx/_generic_vhost.conf.j2"
+    dest: "/etc/nginx/sites-available/{{ local_vars_proxy_default_vhost_file }}"
+    owner: "root"
+    group: "root"
+    port: "{{ global_main_nginx_port }}"
+    ssl_enabled: false
+    domain_names:
+      - "_"
+    http2_settings: "default_server"
+    main_root_folder: "/var/www/html"
+    index_files:
+      - "index.html"
+      - "index.htm"
+      - "index.nginx-debian.html"
+    logging_enabled: true
+    access_log_file: "{{ local_vars_proxy_main_log_access_file }}"
+    access_format: "jsonlog"
+    error_log_file: "{{ local_vars_proxy_main_log_error_file }}"
+    root_level_adhoc_entries:
+      - "map_hash_max_size 26214"
+      - "map_hash_bucket_size 26214"
+    bodyinstructions:
+      - "resolver     172.21.0.2"
+      - "set          $upstream_endpoint http://{{ hostvars.localhost.reg_internal_alb_facts.load_balancers.0.dns_name }}:{{ global_var_app_port_for_proxies }}"
+    root_level_map_section_details:
+      httpcontenttype:
+        type: "$http_content_type"
+        name: "$effective_content_type"
+        entriesconfig:
+          - '"~."          $http_content_type'
+          - '"application/x-www-form-urlencoded;charset=UTF-8" "text/xml"'
+          - '"application/x-www-form-urlencoded" "text/xml"'
+          - 'default       "text/xml"'
+    locations:
+      - context: "/"
+        instructions:
+          - "proxy_set_header Content-Type $effective_content_type"
+          - "proxy_set_header X-Request-Id $request-id"
+          - "proxy_pass $upstream_endpoint"
+
+webserverfamily_nginx_deletefiles_details:
+  - "/etc/nginx/sites-enabled/default"
+  - "/etc/nginx/sites-enabled/default.conf"
+webserverfamily_nginx_common_enable_sites_details_hash:
+  main:
+    vhost: "{{ local_vars_proxy_default_vhost_file }}"
+webserverfalocal_vars_mily_nginx_common_validation_enable: true
+webserverfamily_nginx_common_restart_enabled: true
+
+monitoringfamily_install_file: "agent_installer.sh"
+monitoringfamily_r7insightops_config_path: "/opt/rapid7/ir_agent/components/insight_agent/common/config"
+monitoringfamily_enable_r7insightops: true
+monitoringfamily_r7insightops_agent_directory: "/tmp/insightops"
+monitoringfamily_r7insightops_agent_online_download_url: "https://s3.amazonaws.com/com.rapid7.razor.public/endpoint/agent/latest/linux/x86_64/agent_control_latest.sh"
+
+monitoringfamily_r7insightops_accesslog_name: "NginxProxy_MainAccess_log"
+monitoringfamily_r7insightops_errorlog_name: "NginxProxy_MainError_log"
+
+monitoringfamily_r7insightops_agent_block_templating_details:
+  dest: "{{ monitoringfamily_r7insightops_config_path }}/logging.json"
+  path: "/config/logs"
+  src: "rapid7_insightops/config_block.j2"
+  type: "inject"
+  blocks:
+    - { 
+      destination: "{{ global_var_insightops_log_set }}/{{ monitoringfamily_r7insightops_accesslog_name }}",
+      enabled: "true",
+      name: "{{ monitoringfamily_r7insightops_accesslog_name }}",
+      path: "{{ local_vars_proxy_main_log_access_file }}"
+    }
+    - { 
+      destination: "{{ global_var_insightops_log_set }}/{{ monitoringfamily_r7insightops_errorlog_name }}",
+      enabled: "true",
+      name: "{{ monitoringfamily_r7insightops_errorlog_name }}",
+      path: "{{ local_vars_proxy_main_log_error_file }}"
+    }
+
+
+# monitoringfamily_r7insightops_agent_overwrite_config_details:
+#   dest: "{{ monitoringfamily_r7insightops_config_path }}/logging.json"
+#   src: "rapid7_insightops/empty_config.j2"

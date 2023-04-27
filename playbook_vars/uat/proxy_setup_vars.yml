@@ -1,0 +1,86 @@
+security_hardening_enable: true
+security_os_mountpoint_details:
+  tmpfs:
+    state: "present"
+networking_box_hostname: "{{ hostvars[inventory_hostname]['tags']['AName'] }}"
+util_filesystem_enable: true
+util_filesystem_install_packages_direct_list:
+  - unzip
+  - python3-pip
+util_filesystem_install_pip_package_list:
+  - httpie
+util_filesystem_create_directory_with_pem_details:
+  - {
+      path: "{{ elasticbeats_hearbeat_log_dir }}",
+      mode: "0755"
+  }  
+monitoringfamily_enable_r7insightops: true
+local_vars_monitoringfamily_install_file: "agent_installer.sh"
+monitoringfamily_r7insightops_config_path: "/opt/rapid7/ir_agent/components/insight_agent/common/config"
+local_vars_monitoringfamily_r7insightops_agent_directory: "/tmp/insightops"
+local_vars_monitoringfamily_r7insightops_agent_online_download_url: "https://s3.amazonaws.com/com.rapid7.razor.public/endpoint/agent/latest/linux/x86_64/agent_control_latest.sh"
+local_vars_monitoringfamily_nginx_ansiblevhost_accesslog: "/var/log/nginx/access.log"
+local_vars_monitoringfamily_nginx_ansiblevhost_errorlog: "/var/log/nginx/error.log"
+monitoringfamily_r7insightops_create_directory_with_pem_details:
+  - {
+      path: "{{ local_vars_monitoringfamily_r7insightops_agent_directory }}"
+  }
+monitoringfamily_r7insightops_agent_download_details:
+  - {
+      dest: "/tmp/{{ local_vars_monitoringfamily_install_file }}",
+      url: "{{ local_vars_monitoringfamily_r7insightops_agent_online_download_url }}",
+      mode: "0755"
+    }
+monitoringfamily_r7insightops_agent_manual_install_details:
+  - {
+       execcmd: "./{{ local_vars_monitoringfamily_install_file }} install_start  --config_path  {{ local_vars_monitoringfamily_r7insightops_agent_directory }} --token {{ vault_rapid7insightops_agent_token }} ",
+       folder: "/tmp"
+    }   
+monitoringfamily_r7insightops_agent_templating_details:
+  dest: "{{ monitoringfamily_r7insightops_config_path }}/logging.json"
+  src: "rapid7_insightops/config.j2"
+  servername: "{{ inventory_hostname }}"
+  api_key: "{{ vault_rapid7insightops_apikey }}"    
+monitoringfamily_r7insightops_agent_templating_data:
+  mainconfig:
+    appnginxaccess:
+      r7dest: "Billbox2.0UAT/Nginx_Proxy_DefaultAccess_Log"
+      enabled: "true"
+      name: "NginxAppAccess"
+      path: "{{ local_vars_monitoringfamily_nginx_ansiblevhost_accesslog }}"
+    appnginxerror:
+      r7dest: "Billbox2.0UAT/Nginx_Proxy_DefaultError_Log"
+      enabled: "true"
+      name: "NginxAppError"
+      path: "{{ local_vars_monitoringfamily_nginx_ansiblevhost_errorlog }}"
+webserverfamily_nginx_enable: true
+webserverfamily_nginx_desired_ppa: "ppa:ondrej/nginx"
+webserverfamily_nginx_install_details:
+  - nginx=1.22.0-1+ubuntu20.04.1+deb.sury.org+1
+  - nginx-extras=1.22.0-1+ubuntu20.04.1+deb.sury.org+1
+elasticbeats_hearbeat_log_dir: "/var/log/heartbeat"
+elasticbeats_hearbeat_log_filename: "billboxbeat.log"
+elastibeats_heartbeat_version: "8.4.1"
+elasticbeats_installation_details: 
+  - { 
+      url: "https://artifacts.elastic.co/downloads/beats/heartbeat/heartbeat-oss-{{ elastibeats_heartbeat_version }}-amd64.deb" 
+  }
+elasticbeats_configuration_details:
+  heartbeat:
+    src: "heartbeat.yml.j2"
+    dest: "/etc/heartbeat/heartbeat.yml"
+    elasticsearch_hosts: ["188.138.41.214"]
+    path: "/"
+    elasticsearch_username: "admin"
+    elasticsearch_password: "admin"
+    kibana_host: "https://monitoring.doersops.com:443/kibana"
+    kibana_username: "kibanaadmin"
+    kibana_password: "kibanaaadmin"
+    log_dir: "{{ elasticbeats_hearbeat_log_dir }}"
+    log_filename: "{{ elasticbeats_hearbeat_log_filename }}"
+    log_level: "debug"
+    log_to_files: true
+    log_to_syslog: true,
+    monitor_path: "${path.config}/monitors.d/*.yml"
+    monitor_reload: "true"
+    monitor_reload_period: "15s"

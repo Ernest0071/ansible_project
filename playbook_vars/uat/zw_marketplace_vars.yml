@@ -1,0 +1,126 @@
+
+
+zw_marketplace_server_task_family_name: "{{ global_var_product }}-{{ global_var_environment }}-{{ global_var_services_details.zwmarketplaceserver.name }}"
+zw_marketplace_server_task_executionRoleArn: "{{ hostvars.localhost.reg_ecs_role_facts.iam_roles.0.arn }}"
+zw_marketplace_server_task_networkmode: awsvpc
+zw_marketplace_server_task_ecsmode: FARGATE
+zw_marketplace_server_task_cpu: 256
+zw_marketplace_server_task_memory: 512
+zw_marketplace_server_task_container_name: "{{ global_var_services_details.zwmarketplaceserver.name }}"
+zw_marketplace_server_task_container_image: "{{ global_var_services_details.zwmarketplaceserver.image }}"
+zw_marketplace_server_task_container_cpu: 256
+zw_marketplace_server_task_container_memory: 512
+zw_marketplace_server_task_container_credentials_parameter: "{{ hostvars.localhost.reg_dockerhub_secrets_facts.ARN }}"
+zw_marketplace_server_task_container_essential: true
+zw_marketplace_server_task_container_env:
+  - name: NODE_ENV
+    value: production
+  - name: PORT
+    value: "{{ global_var_services_details.zwmarketplaceserver.containerPort }}"
+  - name: COL_API
+    value: "http://{{ global_var_services_details.coreserver.name }}.{{ global_var_priv_dns_namespace }}:{{ global_var_services_details.coreserver.intPort }}"
+  - name: POS_API
+    value: "http://{{ global_var_services_details.posapiserver.name }}.{{ global_var_priv_dns_namespace }}:{{ global_var_services_details.posapiserver.hostPort }}"
+  - name: POS_URL
+    value: "http://{{ global_var_services_details.webposserver.domain }}/slydepayzw"
+  - name: CURRENCY
+    value: "ZWL"
+  - name: USE_POS_URL_CONFIG
+    value: "FALSE"
+  - name: BT_MAX_REQUEST_RETRIES
+    value: 5
+  - name: BT_MIN_REQUEST_LOCKOUT
+    value: 600000
+  - name: BT_MAX_REQUEST_LOCKOUT
+    value: 3600000
+  - name: CAPTCHA_SECRET_KEY
+    value: 6LcDAcoZAAAAAFxz9CS-eMvHaMO_KjuCXYOYEM5s
+zw_marketplace_sidecar_server_task_container_essential: true
+zw_marketplacenginx_server_task_container_env:
+  - name: FULL_GIT_URL
+    value: "https://{{ vault_git_username }}:{{ vault_git_token }}@bitbucket.org/kowri/kb-nginx-configuration.git"
+  - name: CONF_FILE
+    value: "zw_marketplaceserver_{{ global_var_environment }}.conf"
+zw_marketplace_server_task_container_mon_env:
+  - name: "DD_DOCKER_ENV_AS_TAGS"
+    value: '{"ENVIRONMENT":"{{ global_var_environment }}"}'
+  - name: "DD_APM_NON_LOCAL_TRAFFIC"
+    value: "true"
+  - name: "ECS_FARGATE"
+    value: "true"
+  - name: "DD_APM_ENABLED"
+    value: "true" 
+  - name: "DD_DOGSTATSD_NON_LOCAL_TRAFFIC"
+    value: "true"
+  - name: "DD_DOGSTATSD_PORT"
+    value: "8125"
+  - name: "DD_APM_RECEIVER_PORT"
+    value: "8126"
+zw_marketplace_server_task_container_secretenv_definition:
+  mon_api_key:
+    id: "{{ global_var_environment }}_DD_API_KEY"
+    name: DD_API_KEY
+    content: "{{ vault_datadog_api_key }}"
+  core_col_username:
+    id: "{{ global_var_environment }}_{{ global_var_services_details.zwmarketplaceserver.name }}_COL_USERNAME"
+    name: COL_USERNAME
+    content: "{{ vault_zwmktplace_col_username }}"
+  core_col_password:
+    id: "{{ global_var_environment }}_{{ global_var_services_details.zwmarketplaceserver.name }}_COL_PASSWORD"
+    name: COL_PASSWORD
+    content: "{{ vault_zwmktplace_col_password }}"
+  pos_api_username:
+    id: "{{ global_var_environment }}_{{ global_var_services_details.zwmarketplaceserver.name }}_POS_USERNAME"
+    name: POS_USERNAME
+    content: "{{ vault_zwmktplace_pos_username }}"
+  pos_api_password:
+    id: "{{ global_var_environment }}_{{ global_var_services_details.zwmarketplaceserver.name }}_POS_PASSWORD"
+    name: POS_PASSWORD
+    content: "{{ vault_zwmktplace_pos_password }}"
+zw_marketplace_server_task_container_secretenv:
+  - valueFrom: "{{ global_var_environment }}_DD_API_KEY"
+    name: DD_API_KEY
+  - valueFrom: "{{ global_var_environment }}_{{ global_var_services_details.zwmarketplaceserver.name }}_COL_USERNAME"
+    name: COL_USERNAME
+  - valueFrom: "{{ global_var_environment }}_{{ global_var_services_details.zwmarketplaceserver.name }}_COL_PASSWORD"
+    name: COL_PASSWORD
+  - valueFrom: "{{ global_var_environment }}_{{ global_var_services_details.zwmarketplaceserver.name }}_POS_USERNAME"
+    name: POS_USERNAME
+  - valueFrom: "{{ global_var_environment }}_{{ global_var_services_details.zwmarketplaceserver.name }}_POS_PASSWORD"
+    name: POS_PASSWORD
+zw_marketplace_server_task_container_log_driver: awslogs
+zw_marketplace_server_task_container_log_logsgroup: "{{ global_var_log_group }}"
+zw_marketplace_server_task_container_log_logsregion: "{{ global_var_ecs_region }}"
+zw_marketplace_server_task_container_log_logsprefix: "{{ global_var_product }}-{{ global_var_environment }}-"
+zw_marketplace_alb_arn: "{{ hostvars.localhost.reg_alb_facts.load_balancers.0.load_balancer_arn }}"
+zw_marketplace_service_name: "{{ zw_marketplace_server_task_family_name }}-service"
+zw_marketplace_targetgroup_name: "{{ global_var_product }}-{{ global_var_environment }}-{{ global_var_services_details.zwmarketplaceserver.application_name }}TG"
+zw_marketplace_targetgroup_protocol: "http"
+zw_marketplace_targetgroup_success_http_code: 200
+zw_marketplace_targetgroup_hc_interval: 6
+zw_marketplace_targetgroup_hc_timeout: 5
+zw_marketplace_targetgroup_hc_healthycount: 3
+zw_marketplace_targetgroup_hc_unhealthycount: 3
+zw_marketplace_targetgroup_hc_path: "/"
+zw_marketplace_targetgroup_hc_protocol: "http"
+zw_marketplace_targetgroup_targettype: "ip"
+zw_marketplace_service_count: 1
+zw_marketplace_service_platform_version: 1.3.0
+zw_marketplace_service_hc_graceperiod: 600
+zw_marketplace_service_autoscalling_policy_type: "TargetTrackingScaling"
+zw_marketplace_service_autoscalling_min_task: 1
+zw_marketplace_service_autoscalling_max_task: 3
+zw_marketplace_service_mem_autoscalling_policy_name: "{{ zw_marketplace_server_task_family_name }}-mem-as-policy"
+zw_marketplace_service_cpu_autoscalling_policy_name: "{{ zw_marketplace_server_task_family_name }}-cpu-as-policy"
+zw_marketplace_service_mem_autoscalling_tracking_scaling_target_value: 80
+zw_marketplace_service_cpu_autoscalling_tracking_scaling_target_value: 50
+zw_marketplace_service_mem_autoscalling_tracking_scaling_metric_spec: "ECSServiceAverageMemoryUtilization"
+zw_marketplace_service_cpu_autoscalling_tracking_scaling_metric_spec: "ECSServiceAverageCPUUtilization"
+zw_marketplace_service_mem_autoscalling_tracking_scalout_cooldown: 60
+zw_marketplace_service_mem_autoscalling_tracking_scalin_cooldown: 60
+zw_marketplace_service_cpu_autoscalling_tracking_scalout_cooldown: 120
+zw_marketplace_service_cpu_autoscalling_tracking_scalin_cooldown: 180
+zw_marketplace_service_awscli_enabled: false
+zw_marketplace_service_scheduled_autoscalling: true
+zw_marketplace_service_wake_cron: "00 06 ? * MON-FRI *"
+zw_marketplace_service_sleep_cron: "59 20 ? * MON-FRI *"

@@ -1,0 +1,61 @@
+---
+proxy_ghsurfline_vhost_file: "forward_ghsrufline.conf"
+ghsurfline_upstream_host1: "172.25.39.16:2222"
+ghsurfline_upstream_host1_mon_type: tcp
+ghsurfline_upstream_host1_mon_scheme: http
+ghsurfline_upstream_host2: "172.25.39.13:3003"
+ghsurfline_upstream_host2_mon_type: tcp
+ghsurfline_upstream_host2_mon_scheme: http
+webserverfamily_nginx_ppa_version_enable: true
+webserverfamily_nginx_enable: true
+webserverfamily_nginx_install_details:
+  - nginx
+  - nginx-extras
+webserverfamily_nginx_push_configfiles_details:
+  forward_ghsurfline:
+    src: "nginx/_generic_vhost.conf.j2"
+    dest: "/etc/nginx/sites-available/{{ proxy_ghsurfline_vhost_file }}"
+    owner: "root"
+    group: "root"
+    port: "{{ global_ghsurfline_nginx_port }}"
+    ssl_enabled: false
+    domain_names:
+      - "localhost"
+    logging_enabled: true
+    access_log_file: "/var/log/nginx/forward_ghsurfline_nginx_proxy_access.log"
+    access_format: "jsonlog"
+    error_log_file: "/var/log/nginx/forward_ghsurfline_nginx_proxy_error.log"
+    locations:
+      - context: "/test"
+        instructions:
+          - "access_log off"
+          - "return 200"
+      - context: "/purchase/"
+        instructions:
+          - "proxy_set_header X-Forwarded-For $server_addr"
+          - "proxy_pass {{ ghsurfline_upstream_host1_mon_scheme }}://{{ ghsurfline_upstream_host1 }}/"
+      - context: "/balance/"
+        instructions:
+          - "proxy_set_header X-Forwarded-For $server_addr"
+          - "proxy_pass {{ ghsurfline_upstream_host2_mon_scheme }}://{{ ghsurfline_upstream_host2 }}/"
+webserverfamily_nginx_deletefiles_details:
+  - "/etc/nginx/sites-enabled/default"
+webserverfamily_nginx_common_enable_sites_details_hash:
+  ghsurfline:
+    vhost: "{{ proxy_ghsurfline_vhost_file }}"
+webserverfamily_nginx_common_validation_enable: true
+webserverfamily_nginx_common_restart_enabled: true
+elasticbeats_configuration_details:
+  ghsurfline:
+      src: "monitor.yml.j2"
+      dest: "/etc/heartbeat/monitors.d/ghsurfline.yml"
+      type: "{{ ghsurfline_upstream_host1_mon_type }}"
+      name: "ghsurfline"
+      enabled: true
+      schedule: "@every 30s"
+      hosts: ["{{ghsurfline_upstream_host1}}","{{ghsurfline_upstream_host2}}"]
+elasticbeats_systemd_details: 
+  restart:
+      name: "heartbeat-elastic"
+      state: "restarted"
+elk_instance_name: "{{ hostvars[inventory_hostname]['ec2_placement'] }}"

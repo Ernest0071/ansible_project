@@ -1,0 +1,614 @@
+- hosts: localhost
+  connection: local
+  gather_facts: true
+  vars_files:
+    - "playbook_vars/{{ global_var_environment }}/global_vars.yml"
+    - "playbook_vars/{{ global_var_environment }}/vault/{{ global_var_environment }}_variables.vault"
+  tasks:
+    - name: Obtaining AWS Account Facts
+      aws_caller_info:
+      register: reg_aws_facts
+    # - debug: var=reg_aws_facts
+
+    - name: Obtaining facts from jumpbox in {{ global_var_ird_region }}
+      ec2_instance_info:
+        region: "{{ global_var_ird_region }}"
+        filters:
+          "tag:Name": "{{ global_var_country_code }}-{{ global_var_product }}-{{ global_var_environment }}-jumpbox"
+      register: reg_jumpbox_facts
+    # - debug: var=reg_jumpbox_facts
+
+    - name: Obtaining facts from proxies in {{ global_var_ird_region }}
+      ec2_instance_info:
+        region: "{{ global_var_ird_region }}"
+        filters:
+          "tag:Name": "{{ global_var_country_code }}-{{ global_var_product }}-{{ global_var_environment }}-proxy"
+      register: reg_proxy_facts
+    # - debug: var=reg_jumpbox_facts
+
+
+    - name: Obtaining facts for mongo cluster in {{ global_var_ird_region }}
+      ec2_instance_info:
+        region: "{{ global_var_ird_region }}"
+        filters:
+          "tag:Name": "{{ global_var_country_code }}-{{ global_var_product }}-{{ global_var_environment }}-mongo"
+      register: reg_mongo_facts_ird
+    # - debug: var=reg_mongo_facts_ird
+
+    - name: Obtaining facts for mongo cluster in {{ global_var_stm_region }}
+      ec2_instance_info:
+        region: "{{ global_var_stm_region }}"
+        filters:
+          "tag:Name": "{{ global_var_country_code }}-{{ global_var_product }}-{{ global_var_environment }}-mongo"
+      register: reg_mongo_facts_stm
+    # - debug: var=reg_mongo_facts_stm
+
+    - name: Obtaining facts for mongo arbiter in {{ global_var_frt_region }}
+      ec2_instance_info:
+        region: "{{ global_var_frt_region }}"
+        filters:
+          "tag:Name": "{{ global_var_country_code }}-{{ global_var_product }}-{{ global_var_environment }}-mongo-arb"
+      register: reg_mongo_facts_arb_frt
+    # - debug: var=reg_mongo_facts_arb_frt
+
+    - name: Obtaining facts for mongo cluster in {{ global_var_frt_region }}
+      ec2_instance_info:
+        region: "{{ global_var_frt_region }}"
+        filters:
+          "tag:Name": "{{ global_var_country_code }}-{{ global_var_product }}-{{ global_var_environment }}-mongo"
+      register: reg_mongo_facts_frt
+    # - debug: var=reg_mongo_facts_frt
+
+    - name: "Defining list object for the mongo facts"
+      ansible.builtin.set_fact:
+        reg_mongo_facts: []
+
+    - name: "Appending fact items to the defined mongo fact list object"
+      ansible.builtin.set_fact:
+        reg_mongo_facts: "{{ reg_mongo_facts + [item] }}"
+      with_items:
+        - "{{ reg_mongo_facts_ird.instances | list }}"
+        - "{{ reg_mongo_facts_frt.instances | list }}"
+        - "{{ reg_mongo_facts_arb_frt.instances | list }}"
+        - "{{ reg_mongo_facts_stm.instances | list }}"
+
+
+    - name: Obtaining facts from Percona Xtradb Cluster {{ global_var_ird_region }}
+      ec2_instance_info:
+        region: "{{ global_var_ird_region }}"
+        filters:
+          "tag:Name": "{{ global_var_country_code }}-{{ global_var_product }}-{{ global_var_environment }}-mysql"
+      register: reg_mysql_facts_ird
+
+    - name: Obtaining facts from Percona Xtradb Cluster {{ global_var_frt_region }}
+      ec2_instance_info:
+        region: "{{ global_var_frt_region }}"
+        filters:
+          "tag:Name": "{{ global_var_country_code }}-{{ global_var_product }}-{{ global_var_environment }}-mysql"
+      register: reg_mysql_facts_frt
+
+    - name: Obtaining facts from Percona Xtradb Cluster {{ global_var_stm_region }}
+      ec2_instance_info:
+        region: "{{ global_var_stm_region }}"
+        filters:
+          "tag:Name": "{{ global_var_country_code }}-{{ global_var_product }}-{{ global_var_environment }}-mysql"
+      register: reg_mysql_facts_stm
+
+    # - name: Obtaining facts from RDS
+    #   amazon.aws.rds:
+    #     command: facts
+    #     # instance_name: "{{ global_var_country_code }}-{{ global_var_product }}-{{ global_var_environment }}-rds"
+    #     instance_name: "main-billbox-uat-rds"
+    #     region: "{{ global_var_stm_region }}"
+    #   register: reg_rds_aurora_info
+
+    - name: "Defining list object for mysql facts"
+      ansible.builtin.set_fact:
+        reg_mysql_facts: []
+
+    - name: "Appending fact items to the defined mysql object list"
+      ansible.builtin.set_fact:
+        reg_mysql_facts: "{{ reg_mysql_facts + [item] }}"
+      with_items:
+        - "{{ reg_mysql_facts_ird.instances | list }}"
+        - "{{ reg_mysql_facts_frt.instances | list }}"
+        - "{{ reg_mysql_facts_stm.instances | list }}"
+
+    - name: obtain all facts for a single Elasticache cluster
+      shell: "aws elasticache describe-replication-groups --replication-group-id {{ global_var_country_code }}-{{ global_var_product }}-{{ global_var_environment }}-{{ global_var_redis_replicationgroupname }} --region {{ global_var_ird_region }} --profile {{ lookup('env','AWS_PROFILE') }}"
+      register: reg_manual_elasticache_facts
+      when: 
+      - global_awx_ad_hoc_shell_switch is defined
+      - not global_awx_ad_hoc_shell_switch
+
+    - name: obtain all facts for a single Elasticache cluster with awscli
+      shell: "aws elasticache describe-replication-groups --replication-group-id {{ global_var_country_code }}-{{ global_var_product }}-{{ global_var_environment }}-{{ global_var_redis_replicationgroupname }} --region {{ global_var_ird_region }}"
+      register: reg_manual_elasticache_facts_awscli
+      when: 
+      - global_awx_ad_hoc_shell_switch is defined
+      - global_awx_ad_hoc_shell_switch
+      environment:
+        AWS_ACCESS_KEY_ID: "{{ vault_aws_access_key }}"
+        AWS_SECRET_ACCESS_KEY: "{{ vault_aws_access_secret }}"    
+
+    # - debug: var=reg_manual_elasticache_facts
+
+    - name: Extracting Elasticache Primary Address
+      set_fact:
+        reg_elasticache_facts: "{{ reg_manual_elasticache_facts.stdout | from_json | json_query(\"ReplicationGroups[0].NodeGroups[0].PrimaryEndpoint.Address\") }}"
+      when: reg_manual_elasticache_facts.changed
+
+    - set_fact:
+        reg_elasticache_facts: "{{ reg_manual_elasticache_facts_awscli.stdout | from_json | json_query(\"ReplicationGroups[0].NodeGroups[0].PrimaryEndpoint.Address\") }}"
+      when: reg_manual_elasticache_facts_awscli.changed
+    
+
+    - name: Common || Obtaining vpc facts
+      ec2_vpc_net_info:
+        filters: 
+          "tag:Name": "{{ global_var_vpc_name }}"
+        region: "{{ global_var_ecs_region }}" 
+      register: reg_vpc_facts
+      # - debug: var=reg_vpc_facts  
+
+    - name: Common || Obtaining subnet for Apps
+      ec2_vpc_subnet_info:
+        filters:
+          "tag:Name": "{{ global_var_app_subnet_name }}"
+        region: "{{ global_var_ecs_region }}"
+      register: reg_app_subnet_facts
+
+    - name: Common || Obtaining private subnet for Apps
+      ec2_vpc_subnet_info:
+        filters:
+          "tag:Name": "{{ global_var_private_app_subnet_name }}"
+        region: "{{ global_var_ecs_region }}"
+      register: reg_private_app_subnet_facts
+
+    - name: Common || Obtaining subnet for Card Apps
+      ec2_vpc_subnet_info:
+        filters:
+          "tag:Name": "{{ global_var_card_subnet_name }}"
+        region: "{{ global_var_ecs_region }}"
+      register: reg_card_app_subnet_facts
+
+    - name: Common || Obtaining subnet for Database
+      ec2_vpc_subnet_info:
+        filters:
+          "tag:Name": "{{ global_var_db_subnet_name }}"
+        region: "{{ global_var_ecs_region }}"
+      register: reg_db_subnet_facts
+
+    - name: Common || Obtaining App security group
+      ec2_group_info:
+        filters:
+          group-name: "{{ global_var_app_secgroup }}"
+        region: "{{ global_var_ecs_region }}"
+      register: reg_app_secgroup_facts
+
+    - name: Common || Obtaining ELB security group
+      ec2_group_info:
+        filters:
+          group-name: "{{ global_var_alb_secgroup }}"
+        region: "{{ global_var_ecs_region }}"
+      register: reg_elb_secgroup_facts
+
+    - name: Common || Obtaining Internal ELB security group
+      ec2_group_info:
+        filters:
+          group-name: "{{ global_var_internalelb_secgroup }}"
+        region: "{{ global_var_ecs_region }}"
+      register: reg_internalelb_secgroup_facts
+
+
+    - name: Common || Obtaining Internal ELB security group
+      elb_application_lb_info:
+        names: "{{ global_var_intnalalb_name }}"
+        region: "{{ global_var_ecs_region }}"
+      register: reg_internal_elb_application_lb
+
+
+    # - name: Common || Creating Elastic LoadBalancer
+    #   elb_application_lb:
+    #     name: "{{ global_var_alb_name }}"
+    #     security_groups: "{{ reg_elb_secgroup_facts.security_groups | map(attribute='group_id') | list }}"
+    #     subnets: "{{ reg_app_subnet_facts.subnets | map(attribute='id') | list }}"
+    #     region: "{{ global_var_ecs_region }}"        
+    #     listeners:
+    #       - Protocol: HTTP
+    #         Port: 80
+    #         DefaultActions:
+    #           - Type: forward 
+    #             TargetGroupName: "{{ global_var_alb_default_targetgroup }}"
+    #       - Protocol: HTTPS
+    #         Port: 443
+    #         DefaultActions:
+    #           - Type: forward 
+    #             TargetGroupName: "{{ global_var_alb_default_targetgroup }}"
+    #         Certificates:
+    #           - CertificateArn: "{{ global_var_alb_certificate_arn }}"
+    #         SslPolicy: ELBSecurityPolicy-TLS-1-2-Ext-2018-06
+    #     state: present
+    #   register: reg_elb_application_lb
+
+    - name: Common || Obtaining ECS Role facts
+      iam_role_info:
+        name: "{{ global_var_iam_ecs_role }}"
+        region: "{{ global_var_ecs_region }}"         
+      register: reg_ecs_role_facts
+
+    - name: Common || Obtaining public mTLS ALB facts
+      elb_application_lb_info:
+        region: "{{ global_var_ecs_region }}"
+        names:
+        - "{{ global_var_mtls_alb_name }}"
+      register: reg_mtls_alb_facts
+
+    - name: Common || Obtaining public ALB facts
+      elb_application_lb_info:
+        region: "{{ global_var_ecs_region }}"
+        names:
+        - "{{ global_var_alb_name }}"
+      register: reg_alb_facts
+    # - debug: var=reg_alb_facts
+
+    - name: Common || Obtaining internal ALB facts
+      elb_application_lb_info:
+        region: "{{ global_var_ecs_region }}"
+        names:
+        - "{{ global_var_intnalalb_name }}"
+      register: reg_internal_alb_facts
+      
+    # - debug: var=reg_internal_alb_facts
+
+    - name: Common || Obtaining cloudwatch log facts
+      cloudwatchlogs_log_group_info:
+        region: "{{ global_var_ecs_region }}" 
+        log_group_name: "{{ global_var_log_group }}"
+      register: reg_cloudwatchlog_facts
+        
+    # - name:  Obtaining AWS SecretsManager Facts for Nexus
+    #   shell: "aws secretsmanager describe-secret --secret-id {{ global_var_ssm_nexussecret }} --region {{ global_var_ecs_region }} --profile {{ lookup('env','AWS_PROFILE') }}"
+    #   register: reg_manual_nexus_secrets_facts
+    #   when: 
+    #     - global_awx_ad_hoc_shell_switch is defined
+    #     - not global_awx_ad_hoc_shell_switch
+    # - debug: var=reg_nexus_secrets_facts
+
+    # - name:  Obtaining AWS SecretsManager Facts with awscli for Nexus
+    #   shell: "aws secretsmanager describe-secret --secret-id {{ global_var_ssm_nexussecret }} --region {{ global_var_ecs_region }}"
+    #   register: reg_manual_nexus_secrets_facts_awscli
+    #   when:
+    #     - global_awx_ad_hoc_shell_switch is defined
+    #     - global_awx_ad_hoc_shell_switch
+    #   environment:
+    #     AWS_ACCESS_KEY_ID: "{{ vault_aws_access_key }}"
+    #     AWS_SECRET_ACCESS_KEY: "{{ vault_aws_access_secret }}"
+    # # - debug: var=reg_nexus_secrets_facts
+        
+    # - name:  Obtaining AWS SecretsManager Facts for Quay.io
+    #   shell: "aws secretsmanager describe-secret --secret-id {{ global_var_ssm_quayiosecret }} --region {{ global_var_ecs_region }} --profile {{ lookup('env','AWS_PROFILE') }}"
+    #   register: reg_manual_quay_secrets_facts
+    #   when: 
+    #     - global_awx_ad_hoc_shell_switch is defined
+    #     - not global_awx_ad_hoc_shell_switch
+    # # - debug: var=reg_nexus_secrets_facts
+
+    # - name:  Obtaining AWS SecretsManager Facts with awscli for Quay.io
+    #   shell: "aws secretsmanager describe-secret --secret-id {{ global_var_ssm_quayiosecret }} --region {{ global_var_ecs_region }}"
+    #   register: reg_manual_quay_secrets_facts_awscli
+    #   when:
+    #     - global_awx_ad_hoc_shell_switch is defined
+    #     - global_awx_ad_hoc_shell_switch
+    #   environment:
+    #     AWS_ACCESS_KEY_ID: "{{ vault_aws_access_key }}"
+    #     AWS_SECRET_ACCESS_KEY: "{{ vault_aws_access_secret }}"
+    # # - debug: var=reg_nexus_secrets_facts
+
+    # - name:  Obtaining AWS SecretsManager Facts for container-registry
+    #   shell: "aws secretsmanager describe-secret --secret-id {{ global_var_ssm_harborsecret }} --region {{ global_var_ecs_region }} --profile {{ lookup('env','AWS_PROFILE') }}"
+    #   register: reg_manual_harbor_secrets_facts
+    #   when: 
+    #     - global_awx_ad_hoc_shell_switch is defined
+    #     - not global_awx_ad_hoc_shell_switch
+
+    # - name:  Obtaining AWS SecretsManager Facts with awscli for Container-registry
+    #   shell: "aws secretsmanager describe-secret --secret-id {{ global_var_ssm_harborsecret }} --region {{ global_var_ecs_region }}"
+    #   register: reg_manual_harbor_secrets_facts_awscli
+    #   when:
+    #     - global_awx_ad_hoc_shell_switch is defined
+    #     - global_awx_ad_hoc_shell_switch
+    #   environment:
+    #     AWS_ACCESS_KEY_ID: "{{ vault_aws_access_key }}"
+    #     AWS_SECRET_ACCESS_KEY: "{{ vault_aws_access_secret }}"
+
+
+
+    - name:  Obtaining AWS SecretsManager Facts for Dockerhub
+      shell: "aws secretsmanager describe-secret --secret-id {{ global_var_ssm_dockerhubsecret }} --region {{ global_var_ecs_region }} --profile {{ lookup('env','AWS_PROFILE') }}"
+      register: reg_manual_dockerhub_secrets_facts
+      when: 
+        - global_awx_ad_hoc_shell_switch is defined
+        - not global_awx_ad_hoc_shell_switch
+
+    - name:  Obtaining AWS SecretsManager Facts with awscli for Dockerhub
+      shell: "aws secretsmanager describe-secret --secret-id {{ global_var_ssm_dockerhubsecret }} --region {{ global_var_ecs_region }}"
+      register: reg_manual_dockerhub_secrets_facts_awscli
+      when:
+        - global_awx_ad_hoc_shell_switch is defined
+        - global_awx_ad_hoc_shell_switch
+      environment:
+        AWS_ACCESS_KEY_ID: "{{ vault_aws_access_key }}"
+        AWS_SECRET_ACCESS_KEY: "{{ vault_aws_access_secret }}"
+
+    # - name: set fact for Nexus SecretsManager
+    #   set_fact:
+    #     reg_nexus_secrets_facts: "{{ reg_manual_nexus_secrets_facts.stdout | from_json  }}"
+    #   when: reg_manual_nexus_secrets_facts.changed
+
+    # - name: set fact for Nexus SecretsManager awscli
+    #   set_fact:
+    #     reg_nexus_secrets_facts: "{{ reg_manual_nexus_secrets_facts_awscli.stdout | from_json  }}"
+    #   when: reg_manual_nexus_secrets_facts_awscli.changed
+
+    # - name: set fact for Quay SecretsManager
+    #   set_fact:
+    #     reg_quayio_secrets_facts: "{{ reg_manual_quay_secrets_facts.stdout | from_json  }}"
+    #   when: reg_manual_quay_secrets_facts.changed
+
+    # - name: set fact for Quay SecretsManager awscli
+    #   set_fact:
+    #     reg_quayio_secrets_facts: "{{ reg_manual_quay_secrets_facts_awscli.stdout | from_json  }}"
+    #   when: reg_manual_quay_secrets_facts_awscli.changed
+
+    # - name: set fact for Harbor SecretsManager
+    #   set_fact:
+    #     reg_harbor_secrets_facts: "{{ reg_manual_harbor_secrets_facts.stdout | from_json  }}"
+    #   when: reg_manual_harbor_secrets_facts.changed
+
+    # - name: set fact for Harbor SecretsManager awscli
+    #   set_fact:
+    #     reg_harbor_secrets_facts: "{{ reg_manual_harbor_secrets_facts_awscli.stdout | from_json  }}"
+    #   when: reg_manual_harbor_secrets_facts_awscli.changed
+
+
+
+    - name: set fact for Docherhub SecretsManager
+      set_fact:
+        reg_dockerhub_secrets_facts: "{{ reg_manual_dockerhub_secrets_facts.stdout | from_json  }}"
+      when: reg_manual_dockerhub_secrets_facts.changed
+
+    - name: set fact for Dockerhub SecretsManager awscli
+      set_fact:
+        reg_dockerhub_secrets_facts: "{{ reg_manual_dockerhub_secrets_facts_awscli.stdout | from_json  }}"
+      when: reg_manual_dockerhub_secrets_facts_awscli.changed
+
+
+    # - name: set fact for Harbor SecretsManager
+    #   set_fact:
+    #     reg_harbor_secrets_facts: "{{ reg_manual_harbor_secrets_facts.stdout | from_json  }}"
+    #   when: reg_manual_harbor_secrets_facts.changed
+
+    # - name: set fact for Harbor SecretsManager awscli
+    #   set_fact:
+    #     reg_harbor_secrets_facts: "{{ reg_manual_harbor_secrets_facts_awscli.stdout | from_json  }}"
+    #   when: reg_manual_harbor_secrets_facts_awscli.changed
+
+    - name:  Retrieving MSK cluster info
+      shell: "aws kafka list-clusters --cluster-name-filter {{global_var_kafka_cluster_name}}  --region {{ global_var_ird_region }} --profile {{ lookup('env','AWS_PROFILE') }}"
+      register: reg_manual_msk_info
+      when: 
+        - global_awx_ad_hoc_shell_switch is defined
+        - not global_awx_ad_hoc_shell_switch
+
+    - name:  Retrieving MSK cluster info with awscli
+      shell: "aws kafka list-clusters --cluster-name-filter {{global_var_kafka_cluster_name}}  --region {{ global_var_ird_region }}"
+      register: reg_manual_msk_info_awscli
+      when: 
+        - global_awx_ad_hoc_shell_switch is defined
+        - global_awx_ad_hoc_shell_switch
+      environment:
+        AWS_ACCESS_KEY_ID: "{{ vault_aws_access_key }}"
+        AWS_SECRET_ACCESS_KEY: "{{ vault_aws_access_secret }}"
+
+    - name: Retrieving Kafka cluster info
+      set_fact:
+        reg_msk_info: "{{ reg_manual_msk_info.stdout | from_json  }}"
+      when: reg_manual_msk_info.changed
+
+    - name: Retrieving Kafka cluster info with awscli
+      set_fact:
+        reg_msk_info: "{{ reg_manual_msk_info_awscli.stdout | from_json  }}"
+      when: reg_manual_msk_info_awscli.changed
+
+
+    - name: Getting MSK kafka Bootstrap urls
+      shell: "aws kafka list-nodes --cluster-arn {{ reg_msk_info['ClusterInfoList'][0]['ClusterArn'] }}  --region {{ global_var_ird_region }} --profile {{ lookup('env','AWS_PROFILE') }}"
+      register: reg_manual_kakfa_bootstrap_info
+      when: 
+        - global_awx_ad_hoc_shell_switch is defined
+        - not global_awx_ad_hoc_shell_switch    
+
+    - name: Getting MSK kafka Bootstrap urls with awscli
+      shell: "aws kafka list-nodes --cluster-arn {{ reg_msk_info['ClusterInfoList'][0]['ClusterArn'] }}  --region {{ global_var_ird_region }}"
+      register: reg_manual_kakfa_bootstrap_info_awscli
+      when: 
+        - global_awx_ad_hoc_shell_switch is defined
+        - global_awx_ad_hoc_shell_switch
+      environment:
+        AWS_ACCESS_KEY_ID: "{{ vault_aws_access_key }}"
+        AWS_SECRET_ACCESS_KEY: "{{ vault_aws_access_secret }}"  
+
+    - name: Retrieving Kafka bootstrap nodes info
+      set_fact:
+        reg_kakfa_bootstrap_info: "{{ reg_manual_kakfa_bootstrap_info.stdout | from_json  }}"
+      when: reg_manual_kakfa_bootstrap_info.changed
+
+    - name: Retrieving Kafka bootstrap nodes info with awscli
+      set_fact:
+        reg_kakfa_bootstrap_info: "{{ reg_manual_kakfa_bootstrap_info_awscli.stdout | from_json  }}"
+      when: reg_manual_kakfa_bootstrap_info_awscli.changed
+  
+    - name: Getting private route table info
+      ec2_vpc_route_table_info:
+        filters:
+          "tag:Name": "{{ global_var_country_code }}-{{ global_var_product }}-private-{{ global_var_environment }}-routetable"
+        region: "{{ global_var_ecs_region }}"
+      register: reg_private_route_table
+
+    - name: Getting public route table info
+      ec2_vpc_route_table_info:
+        filters:
+          "tag:Name": "{{ global_var_country_code }}-{{ global_var_product }}-public-{{ global_var_environment }}-routetable"
+        region: "{{ global_var_ecs_region }}"
+      register: reg_public_route_table
+
+    # use the AWS CLI to query for details about this cluster, if it exists
+    - name: Check for existing Elasticsearch cluster
+      shell: >
+          aws es describe-elasticsearch-domains 
+          --domain-names {{ global_var_elk_domain_name }}
+          --region {{ global_var_ird_region }} 
+          --profile {{ lookup('env','AWS_PROFILE') }}          
+      changed_when: false
+      when: 
+        - global_awx_ad_hoc_shell_switch is defined
+        - not global_awx_ad_hoc_shell_switch 
+      register: reg_elasticsearch_cluster_query_info
+
+    # use the AWS CLI to query for details about this cluster, if it exists
+    - name: Check for existing Elasticsearch cluster awscli
+      shell: >
+          aws es describe-elasticsearch-domains 
+          --domain-names {{ global_var_elk_domain_name }}
+          --region {{ global_var_ird_region }}          
+      changed_when: false
+      when: 
+        - global_awx_ad_hoc_shell_switch is defined
+        - global_awx_ad_hoc_shell_switch
+      environment:
+        AWS_ACCESS_KEY_ID: "{{ vault_aws_access_key }}"
+        AWS_SECRET_ACCESS_KEY: "{{ vault_aws_access_secret }}"
+      register: reg_elasticsearch_cluster_query_info_awscli
+   
+    # - name: ELK info
+    #   debug: 
+    #     var: reg_elasticsearch_cluster_query_info.skipped
+    #   when: reg_elasticsearch_cluster_query_info.skipped is defined
+
+    # - name: ELK info with awscli
+    #   debug: 
+    #     var: reg_elasticsearch_cluster_query_info_awscli.skipped
+    #   when: reg_elasticsearch_cluster_query_info_awscli.skipped is defined
+
+    - name: Setting up the elk clust info
+      set_fact:
+        reg_elasticsearch_cluster_query: "{{ reg_elasticsearch_cluster_query_info.stdout | from_json }}"
+      when: 
+        - reg_elasticsearch_cluster_query_info.skipped is not defined
+
+
+    - name: Setting up the elk clust info with awscli
+      set_fact:
+        reg_elasticsearch_cluster_query: "{{ reg_elasticsearch_cluster_query_info_awscli.stdout | from_json }}"
+      when: 
+        - reg_elasticsearch_cluster_query_info_awscli.skipped is not defined
+
+    # - debug: var=reg_elasticsearch_cluster_query
+
+    - name: Common || setting fact to be exported
+      set_fact:
+        reg_aws_facts: "{{ reg_aws_facts }}"
+        reg_ecs_role_facts: "{{ reg_ecs_role_facts }}"
+        # reg_elb_application_lb: "{{ reg_elb_application_lb }}"
+        reg_internal_elb_application_lb: "{{ reg_internal_elb_application_lb }}"
+        reg_app_subnet_facts: "{{ reg_app_subnet_facts }}"
+        reg_app_subnet_ids_facts: "{{ reg_app_subnet_facts.subnets | map(attribute='id') | list }}"
+        reg_private_app_subnet_facts: "{{ reg_app_subnet_facts }}"
+        reg_private_app_subnet_ids_facts: "{{ reg_private_app_subnet_facts.subnets | map(attribute='id') | list }}"
+        reg_card_app_subnet_facts: "{{ reg_card_app_subnet_facts }}"
+        reg_card_app_subnet_ids_facts: "{{ reg_card_app_subnet_facts | map(attribute='id') | list }}"
+        reg_app_secgroup_facts: "{{ reg_app_secgroup_facts }}"
+        reg_elb_secgroup_facts: "{{ reg_elb_secgroup_facts }}"
+        reg_app_secgroup_ids_facts: "{{ reg_app_secgroup_facts.security_groups | map(attribute='group_id') | list  }}"
+        reg_vpc_facts: "{{ reg_vpc_facts }}"
+        reg_cloudwatchlog_facts: "{{ reg_cloudwatchlog_facts }}"
+        reg_alb_facts: "{{ reg_alb_facts }}"
+        reg_mtls_alb_facts: "{{ reg_mtls_alb_facts }}"
+        reg_internal_alb_facts: "{{ reg_internal_alb_facts }}"
+        reg_jumpbox_ssh_key: "{{ global_ssh_pem_file_location }}"
+        reg_jumpbox_facts: "{{ reg_jumpbox_facts }}"
+        reg_mongo_cluster_uri: "{{ reg_mongo_facts_ird.instances | json_query('[*].private_ip_address') | join(mongo_port_vars) }}:{{ global_var_mongo_port }}"
+        reg_elasticache_facts: "{{ reg_elasticache_facts }}"
+        reg_kafka_bootstrap_facts_ips_and_port: "{{ reg_kakfa_bootstrap_info | json_query('NodeInfoList[*].BrokerNodeInfo.Endpoints[]') | join(kafka_port_vars) }}:{{ global_var_kafka_plain_port }}"
+        reg_zookeeper_facts_ips_and_port: "{{ reg_msk_info.ClusterInfoList.0.ZookeeperConnectString  }}"
+        reg_db_uri_ips: "{{ reg_mysql_facts | json_query('[*].private_ip_address') | join(',') }}"
+        reg_db_uri_and_port: "{{ reg_mysql_facts | json_query('[*].private_ip_address') | join(mysql_port_vars) }}:{{ global_var_mysql_port }}"        
+        reg_mysql_cluster_uri: "{{ reg_mysql_facts | json_query('[*].private_ip_address') | join(mysql_port_vars) }}:{{ global_var_mysql_port }}"        
+        reg_elasticsearch_cluster: "{{ reg_elasticsearch_cluster_query.DomainStatusList[0] }}"   
+        reg_proxy_facts: "{{ reg_proxy_facts }}"     
+        reg_proxy_instance_ids: "{{ reg_proxy_facts.instances | map(attribute='instance_id') | list }}"
+      vars:
+        mongo_port_vars: ":{{ global_var_mongo_port }},"
+        kafka_port_vars: ":{{ global_var_kafka_plain_port }},"
+        mysql_port_vars: ":{{ global_var_mysql_port }},"
+      when: global_var_environment != "prod"
+
+    - name: Common || setting fact to be exported
+      set_fact:
+        reg_aws_facts: "{{ reg_aws_facts }}"
+        reg_ecs_role_facts: "{{ reg_ecs_role_facts }}"
+        # reg_elb_application_lb: "{{ reg_elb_application_lb }}"
+        reg_internal_elb_application_lb: "{{ reg_internal_elb_application_lb }}"
+        reg_app_subnet_facts: "{{ reg_app_subnet_facts }}"
+        reg_app_subnet_ids_facts: "{{ reg_app_subnet_facts.subnets | map(attribute='id') | list }}"
+        reg_private_app_subnet_facts: "{{ reg_app_subnet_facts }}"
+        reg_private_app_subnet_ids_facts: "{{ reg_private_app_subnet_facts.subnets | map(attribute='id') | list }}"
+        reg_card_app_subnet_facts: "{{ reg_card_app_subnet_facts }}"
+        reg_card_app_subnet_ids_facts: "{{ reg_card_app_subnet_facts | map(attribute='id') | list }}"
+        reg_app_secgroup_facts: "{{ reg_app_secgroup_facts }}"
+        reg_elb_secgroup_facts: "{{ reg_elb_secgroup_facts }}"
+        reg_app_secgroup_ids_facts: "{{ reg_app_secgroup_facts.security_groups | map(attribute='group_id') | list  }}"
+        reg_vpc_facts: "{{ reg_vpc_facts }}"
+        reg_cloudwatchlog_facts: "{{ reg_cloudwatchlog_facts }}"
+        reg_alb_facts: "{{ reg_alb_facts }}"
+        reg_mtls_alb_facts: "{{ reg_mtls_alb_facts }}"
+        reg_internal_alb_facts: "{{ reg_internal_alb_facts }}"
+        reg_jumpbox_ssh_key: "{{ global_ssh_pem_file_location }}"
+        reg_jumpbox_facts: "{{ reg_jumpbox_facts }}"
+        reg_mongo_cluster_uri: "{{ reg_mongo_facts_ird.instances | json_query('[*].private_ip_address') | join(mongo_port_vars) }}:{{ global_var_mongo_port }}"
+        # reg_mongo_cluster_uri: "172.21.10.40:27017,172.21.11.40:27017,172.22.10.40:27017,172.22.11.40:27017,172.22.12.40:27017"
+        reg_elasticache_facts: "{{ reg_elasticache_facts }}"
+        reg_kafka_bootstrap_facts_ips_and_port: "{{ reg_kakfa_bootstrap_info | json_query('NodeInfoList[*].BrokerNodeInfo.Endpoints[]') | join(kafka_port_vars) }}:{{ global_var_kafka_plain_port }}"
+        reg_zookeeper_facts_ips_and_port: "{{ reg_msk_info.ClusterInfoList.0.ZookeeperConnectString  }}"
+        reg_db_uri_ips: "{{ reg_mysql_facts | json_query('[*].private_ip_address') | join(',') }}"
+        reg_db_uri_and_port: "{{ reg_mysql_facts | json_query('[*].private_ip_address') | join(mysql_port_vars) }}:{{ global_var_mysql_port }}"        
+        reg_mysql_cluster_uri: "{{ reg_mysql_facts | json_query('[*].private_ip_address') | join(mysql_port_vars) }}:{{ global_var_mysql_port }}"        
+        reg_elasticsearch_cluster: "{{ reg_elasticsearch_cluster_query.DomainStatusList[0] }}"
+        reg_proxy_instance_ids: "{{ reg_proxy_facts.instances | map(attribute='instance_id') | list }}"
+      vars:
+        mongo_port_vars: ":{{ global_var_mongo_port }},"
+        kafka_port_vars: ":{{ global_var_kafka_plain_port }},"
+        mysql_port_vars: ":{{ global_var_mysql_port }},"
+      when: global_var_environment == "prod"
+
+    # - name: Debug Proxies
+    #   debug: var=reg_proxy_facts
+    # - name: Debug Mongo
+    #   debug: var=reg_mongo_cluster_uri
+
+    # - name:  Mongo Ird instances  
+    #   debug: var=reg_mongo_facts_ird
+    # - name: Debug Mongo IRD
+    #   debug: var=reg_mongo_cluster_uri
+    # - name: Debug Mysql
+    #   debug: var=reg_mysql_cluster_uri
+    # - name: Debug Zookeeper
+    #   debug: var=reg_zookeeper_facts_ips_and_port
+    # - name: Debug Kafka
+    #   debug: var=reg_kafka_bootstrap_facts_ips_and_port
+
+    # - name: internal alb
+    #   debug: var=reg_internal_alb_facts
+    # - name: RDS facts
+      # debug: var=reg_rds_aurora_info
